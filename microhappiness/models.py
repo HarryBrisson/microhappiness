@@ -108,18 +108,18 @@ JOINT_SEED = "gss"  # alternative: "pums" (larger, but lacks HEALTH -> would nee
 
 M5_AFFECT = ModelSpec(
     key="m5_affect",
-    label="Health + mental-health",
-    purpose="M4 + mental-health-days. A conceptually DISTINCT axis (illbeing/affect vs HAPPY's global "
-    "life-evaluation), so not circular — wellbeing science separates life-evaluation, affect, "
-    "eudaimonia, and illbeing. Fit on GSS MNTLHLTH, raked from the PLACES MHLTH margin.",
+    label="Health + mental-health + smoking",
+    purpose="M4 + mental-health-days + smoking. Mental health is a DISTINCT axis (illbeing/affect vs "
+    "HAPPY's life-evaluation), not circular. Smoking is a behavioral MARKER that captures distress "
+    "people won't self-report (they'll admit smoking before 'anxious') — we estimate levels, not "
+    "causes, so a distinct reproducible signal earns its place. Both raked from PLACES (MHLTH, CSMOKING).",
     cell_predictors=("marital", "income", "employment", "education", "age", "sex", "race_ethnicity",
-                     "home_owner", "lives_alone", "health", "mental_health"),
+                     "home_owner", "lives_alone", "health", "mental_health", "smoker"),
     quadratic=("age",),
     random_effects=("region",),
-    notes="GSS MNTLHLTH is asked only in some years -> its coefficient is fit on a GSS subset (smaller "
-    "N, fewer eras). M1-M4 EXCLUDE mental health (the cautious variants) and can be VALIDATED against "
-    "PLACES MHLTH as an independent check; M5 uses it so can't. Depression has no clean GSS individual "
-    "analog to fit on, so it stays a validation target, not a predictor.",
+    notes="GSS MNTLHLTH/SMOKE are asked only in some years -> those coefficients fit on a GSS subset. "
+    "M1-M4 EXCLUDE mental health (the cautious variants) and can be VALIDATED against PLACES MHLTH; M5 "
+    "uses it so can't. Depression has no clean GSS analog -> validation only.",
 )
 
 CANDIDATES: dict[str, ModelSpec] = {

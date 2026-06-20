@@ -85,8 +85,13 @@ def recode_predictors(df: pd.DataFrame) -> pd.DataFrame:
     out["marital"] = out["marital"].map({
         1: "married", 2: "prev_married", 3: "prev_married", 4: "prev_married", 5: "never_married",
     })
-    # employment (WRKSTAT) -> {full_time, other} to match ACS B23025 (employed full-time vs rest).
-    out["employment"] = out["wrkstat"].map(lambda v: "full_time" if v == 1 else "other")
+    # employment (WRKSTAT) -> {employed, unemployed, nilf} to match ACS B23025. The happiness signal
+    # is *unemployment* (strongly negative), which full-time-vs-rest hid by lumping retirees/students.
+    out["employment"] = out["wrkstat"].map({
+        1: "employed", 2: "employed", 3: "employed",          # full/part-time, temp-not-working
+        4: "unemployed",                                       # unemployed / laid off
+        5: "nilf", 6: "nilf", 7: "nilf", 8: "nilf",            # retired, school, keeping house, other
+    })
     # education -> years (EDUC is already 0-20); also a degree bucket for ACS B15003 crosswalk.
     out["education"] = out["educ"]
     # race/ethnicity -> {hispanic, white_nh, black_nh, other_nh} to match ACS B03002.

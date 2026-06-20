@@ -28,6 +28,7 @@ from __future__ import annotations
 PREDICTOR_MEASURES = {
     "GHLTH": "fair-or-poor self-rated general health (% adults)",   # <- GSS HEALTH; the health margin
     "MHLTH": "mental health not good >=14 days (% adults)",         # <- GSS MNTLHLTH (subset of years); M5
+    "CSMOKING": "current smoking (% adults)",                       # <- GSS SMOKE; behavioral distress marker; M5
 }
 
 # Measures used for VALIDATION (and as predictors only where a GSS analog exists, above).

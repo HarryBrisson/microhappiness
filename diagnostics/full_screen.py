@@ -77,7 +77,7 @@ CATALOG = [
 ]
 
 IN_MODEL = {"marital", "income", "lives_alone", "home_owner", "race_ethnicity", "age", "sex",
-            "education", "employment", "health", "mental_health"}
+            "education", "employment", "health", "mental_health", "smoker"}
 INCLUDE_THRESHOLD = 0.005  # single-predictor pseudo-R² floor to flag as a non-trivial signal
 
 
