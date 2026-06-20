@@ -20,3 +20,4 @@ venv/
 !data/research_brief.md
 __pycache__/
 *.pyc
+data/**/*.csv
