@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 from microhappiness.binning import PREDICTORS
-from microhappiness.poststratify import rake
+from microhappiness.poststratify import precompute_masks, rake
 
 _FORMULA_RHS = "married + C(employment) + home_owner + lives_alone + income4 + I(income4**2) + health"
 
@@ -52,28 +52,101 @@ def predict_cells(seed, logit, ols):
     return seed
 
 
-def estimate_tract(seed_cols, w0, preds, acs_margin, health_fraction):
-    """Rake the seed to one tract's margins (+ health) and return its happiness estimates."""
-    margins = dict(acs_margin)
-    margins["health"] = {1.0: health_fraction, 0.0: 1.0 - health_fraction}
-    w = rake(seed_cols, w0, margins)
-    return {
-        "happiness_index": float(np.dot(w, preds["index"].to_numpy())),
-        "pct_very_happy": float(np.dot(w, preds["pct_very"].to_numpy())),
-    }
+def estimate_state(gss_binned, acs_margins, places_health, *, fitted=None):
+    """Estimate every area that has both ACS margins and a PLACES health value. -> DataFrame.
 
-
-def estimate_state(gss_binned, acs_margins, places_health):
-    """Estimate every tract that has both ACS margins and a PLACES health value. -> DataFrame."""
-    logit, ols, n_fit = fit_models(gss_binned)
-    seed = predict_cells(build_seed(gss_binned), logit, ols)
-    seed_cols = {p: seed[p].to_numpy() for p in PREDICTORS}
-    w0 = seed["_w"].to_numpy()
+    `fitted` = (seed, masks, w0, idx, pv, n_fit) to reuse the GSS fit across states (built if None).
+    """
+    if fitted is None:
+        logit, ols, n_fit = fit_models(gss_binned)
+        seed = predict_cells(build_seed(gss_binned), logit, ols)
+        masks = precompute_masks({p: seed[p].to_numpy() for p in PREDICTORS})
+        fitted = (seed, masks, seed["_w"].to_numpy(),
+                  seed["index"].to_numpy(), seed["pct_very"].to_numpy(), n_fit)
+    seed, masks, w0, idx, pv, n_fit = fitted
     rows = []
     for geoid, margin in acs_margins.items():
         h = places_health.get(geoid)
         if not h:
             continue
-        est = estimate_tract(seed_cols, w0, seed, margin, h["fraction"])
-        rows.append({"geoid": geoid, **est, "adult_pop": h["adult_pop"]})
+        m = dict(margin)
+        m["health"] = {1.0: h["fraction"], 0.0: 1.0 - h["fraction"]}
+        w = rake(masks, w0, m)
+        rows.append({"geoid": geoid, "happiness_index": float(np.dot(w, idx)),
+                     "pct_very_happy": float(np.dot(w, pv)), "adult_pop": h["adult_pop"]})
     return pd.DataFrame(rows), {"n_fit": n_fit, "n_cells": len(seed)}
+
+
+# ----- M5: add the mental-health + smoking PLACES margins -----------------------------------------
+# The two extra predictors live in disjoint GSS year-modules (no complete cases with the M4 set), so
+# we GRAFT: estimate each one's coefficient on its OWN co-observed sample, add it to the M4 linear
+# predictor, and extend the seed by conditional independence given health (P(extra | health) from the
+# observed sub-sample). Honest about its limits: mental adds ~+0.013, smoking ~+0.004 (a level marker).
+M5_EXTRA = ("mental_health", "smoker")
+
+
+def fit_models_m5(gss_binned):
+    """Return the M4 fits + grafted {extra: (logit_coef, ols_coef)} + P(extra=1 | health)."""
+    import statsmodels.formula.api as smf
+
+    d = gss_binned.copy()
+    d["very_happy"] = (d["happy"] == 3).astype(int)
+    d["score"] = d["happy"].map({3: 100.0, 2: 50.0, 1: 0.0})
+    logit, ols, n_fit = fit_models(gss_binned)
+    coef, cond = {}, {}
+    for extra in M5_EXTRA:
+        sub = d.dropna(subset=["very_happy", *PREDICTORS, extra])
+        lg = smf.logit(f"very_happy ~ {_FORMULA_RHS} + {extra}", data=sub).fit(disp=0)
+        ol = smf.ols(f"score ~ {_FORMULA_RHS} + {extra}", data=sub).fit()
+        coef[extra] = (float(lg.params[extra]), float(ol.params[extra]))
+        cobs = d.dropna(subset=["health", extra])
+        cond[extra] = {h: float(cobs.loc[cobs["health"] == h, extra].mean()) for h in (0.0, 1.0)}
+    return logit, ols, coef, cond, n_fit
+
+
+def build_seed_m5(gss_binned, logit, ols, coef, cond):
+    """Extend the M4 seed with mental/smoking dimensions (cond. independent given health) + predictions."""
+    base = build_seed(gss_binned)
+    base["_lin"] = logit.predict(base, which="linear")   # M4 logit linear predictor
+    base["_idx"] = ols.predict(base)                  # M4 index
+    out = []
+    for _, c in base.iterrows():
+        h = c["health"]
+        for mh in (0.0, 1.0):
+            for sm in (0.0, 1.0):
+                pm = cond["mental_health"][h] if mh == 1 else 1 - cond["mental_health"][h]
+                ps = cond["smoker"][h] if sm == 1 else 1 - cond["smoker"][h]
+                lin = c["_lin"] + coef["mental_health"][0] * mh + coef["smoker"][0] * sm
+                idx = c["_idx"] + coef["mental_health"][1] * mh + coef["smoker"][1] * sm
+                row = {p: c[p] for p in PREDICTORS}
+                row.update(mental_health=mh, smoker=sm, _w=c["_w"] * pm * ps,
+                           pct_very=100.0 / (1.0 + np.exp(-lin)), index=idx)
+                out.append(row)
+    return pd.DataFrame(out)
+
+
+def fit_m5(gss_binned):
+    """Build the reusable M5 fit (seed masks + per-cell predictions) once, to share across states."""
+    logit, ols, coef, cond, n_fit = fit_models_m5(gss_binned)
+    seed = build_seed_m5(gss_binned, logit, ols, coef, cond)
+    masks = precompute_masks({p: seed[p].to_numpy() for p in (*PREDICTORS, *M5_EXTRA)})
+    return (masks, seed["_w"].to_numpy(), seed["index"].to_numpy(), seed["pct_very"].to_numpy(),
+            n_fit, len(seed), coef)
+
+
+def estimate_state_m5(gss_binned, acs_margins, places, *, fitted=None):
+    """M5 estimates. `places` = {'GHLTH':..., 'MHLTH':..., 'CSMOKING':...} of {geoid:{fraction,adult_pop}}."""
+    masks, w0, ix, pv, n_fit, n_cells, coef = fitted or fit_m5(gss_binned)
+    rows = []
+    for geoid, margin in acs_margins.items():
+        gh, mh, sm = (places["GHLTH"].get(geoid), places["MHLTH"].get(geoid), places["CSMOKING"].get(geoid))
+        if not (gh and mh and sm):
+            continue
+        m = dict(margin)
+        m["health"] = {1.0: gh["fraction"], 0.0: 1 - gh["fraction"]}
+        m["mental_health"] = {1.0: mh["fraction"], 0.0: 1 - mh["fraction"]}
+        m["smoker"] = {1.0: sm["fraction"], 0.0: 1 - sm["fraction"]}
+        w = rake(masks, w0, m)
+        rows.append({"geoid": geoid, "happiness_index": float(np.dot(w, ix)),
+                     "pct_very_happy": float(np.dot(w, pv)), "adult_pop": gh["adult_pop"]})
+    return pd.DataFrame(rows), {"n_fit": n_fit, "n_cells": n_cells, "graft": coef}

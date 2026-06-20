@@ -21,20 +21,22 @@ import json
 from urllib.parse import quote
 from urllib.request import urlopen
 
-RESOURCE = "https://data.cdc.gov/resource/cwsq-ngmh.json"
+RESOURCE = {"tract": "https://data.cdc.gov/resource/cwsq-ngmh.json",
+            "zcta": "https://data.cdc.gov/resource/qnzd-25i4.json"}
 PREDICTOR_MEASURES = {"GHLTH": "fair-or-poor self-rated health", "MHLTH": "frequent mental distress",
                       "CSMOKING": "current smoking"}
 VALIDATION_MEASURES = {"MHLTH": "mental distress (validates M1-M4)", "DEPRESSION": "depression (validation only)"}
 
 
-def fetch_measure(state_abbr: str, measure: str = "GHLTH") -> dict:
-    """{geoid: {'fraction': p, 'adult_pop': n}} for a PLACES measure at tract level in a state."""
+def fetch_measure(measure: str = "GHLTH", *, geography: str = "tract", state_abbr: str | None = None) -> dict:
+    """{geoid: {'fraction': p, 'adult_pop': n}} for a PLACES measure. National unless state_abbr given."""
     out = {}
-    offset, page = 0, 5000
+    offset, page = 0, 50000
+    where = f"stateabbr={state_abbr}&" if state_abbr else ""
     while True:
-        url = (f"{RESOURCE}?stateabbr={state_abbr}&measureid={measure}"
+        url = (f"{RESOURCE[geography]}?{where}measureid={measure}"
                f"&$select=locationname,data_value,totalpopulation&$limit={page}&$offset={offset}")
-        rows = json.loads(urlopen(url, timeout=300).read())
+        rows = json.loads(urlopen(url, timeout=600).read())
         for r in rows:
             v, geoid = r.get("data_value"), r.get("locationname")
             if v is None or not geoid:

@@ -42,24 +42,30 @@ def census_key() -> str:
     return key
 
 
-def _get(year, variables, state, key):
-    url = (API.format(year=year) + "?get=" + ",".join(variables)
-           + f"&for=tract:*&in=state:{state}&key={key}")
-    rows = json.loads(urlopen(url, timeout=300).read())
+def _get(year, variables, key, *, geography="tract", state=None):
+    if geography == "tract":
+        geo = f"&for=tract:*&in=state:{state}"
+    else:  # zcta — national, not nested in state
+        geo = "&for=zip%20code%20tabulation%20area:*"
+    url = API.format(year=year) + "?get=" + ",".join(variables) + geo + f"&key={key}"
+    rows = json.loads(urlopen(url, timeout=600).read())
     df = pd.DataFrame(rows[1:], columns=rows[0])
     for v in variables:
         df[v] = pd.to_numeric(df[v], errors="coerce")
-    df["geoid"] = df["state"] + df["county"] + df["tract"]
+    df["geoid"] = (df["state"] + df["county"] + df["tract"] if geography == "tract"
+                   else df["zip code tabulation area"])
     return df.set_index("geoid")
 
 
-def fetch_acs_margins(state: str, year: int = 2022, key: str | None = None) -> dict:
+def fetch_acs_margins(state: str | None = None, year: int = 2022, key: str | None = None,
+                      geography: str = "tract") -> dict:
     """{geoid: {margin_name: proportion-vector}} for married/employment/home_owner/lives_alone/income4.
 
-    Each margin is a dict of bin->proportion that sums to ~1 (rows with a zero denominator are dropped).
+    geography="tract" needs a state FIPS; geography="zcta" is national. Each margin is a dict of
+    bin->proportion summing to ~1 (rows with a zero denominator are dropped).
     """
     key = key or census_key()
-    df = _get(year, _VARS, state, key)
+    df = _get(year, _VARS, key, geography=geography, state=state)
     out = {}
     for geoid, r in df.iterrows():
         m = {}

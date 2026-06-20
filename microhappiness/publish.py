@@ -1,48 +1,54 @@
-"""Publish the nationwide tract/ZCTA estimates as a versioned artifact for downstream consumers.
+"""Publish the estimates as a versioned artifact for downstream consumers (Penlight, collaborators).
 
-Penlight (ward-wise) and collaborators consume the *published artifact*, not this repo's code — so
-the modeling stack (statsmodels, big ACS pulls) never enters their app. We emit:
+Consumers read the *published artifact*, not this repo's code, so the modeling stack never enters their
+app. We emit per-geography CSVs (geoid, happiness_index, pct_very_happy, adult_pop) + an
+`aggregation_spec.json` (byop/v1-style) describing how to roll the per-area VALUES up to any polygons.
 
-  estimates_tract_<vintage>.csv     GEOID, year, happiness_index, pct_very_happy, se, adult_pop
-  estimates_zcta_<vintage>.csv
-  aggregation_spec.json             byop/v1-style manifest describing the layers + metrics
-
-The estimate is a per-area VALUE (not a point/raster), so a consumer allocates it to its own polygons
-population-weighted (the same tract path ward-wise already uses for ACS/PLACES). The byop/v1 contract
-gains a "weighted_mean" combine (value field x weight field) for this layer kind; until that lands,
-ward-wise ingests the tract CSV directly on its existing tract->ward/CA/χGRID allocation, labeled
-allocation_method="modeled_synthetic_sae", confidence low/medium.
+The estimate is a per-area value, so a consumer aggregates it population-weighted (the same tract path
+ward-wise already uses for ACS/PLACES metrics), labeled allocation_method="modeled_synthetic_sae".
 """
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 CONTRACT = "byop/v1"
 SOURCE = "microhappiness"
+CAVEAT = ("Synthetic small-area estimates: the happiness EXPECTED given an area's circumstantial "
+          "composition (income, marital/household status, employment, home ownership, health) — NOT an "
+          "observed local measurement. Identity characteristics (age/sex/race) are excluded by policy.")
 
 METRICS = {
     "modeled_happiness_index": {
-        "layer": "happiness_estimates",
-        "combine": "weighted_mean",   # value=happiness_index, weight=adult_pop
-        "value": "happiness_index",
-        "weight": "adult_pop",
-        "unit": "index_0_100",
-        "direction": "higher_better",
-        "synthetic": True,
-        "label": "Modeled happiness",
+        "combine": "weighted_mean", "value": "happiness_index", "weight": "adult_pop",
+        "unit": "index_0_100", "direction": "higher_better", "synthetic": True,
+        "label": "Modeled happiness", "category": "community_vitality",
     },
     "modeled_pct_very_happy": {
-        "layer": "happiness_estimates",
-        "combine": "weighted_mean",
-        "value": "pct_very_happy",
-        "weight": "adult_pop",
-        "unit": "percent",
-        "direction": "higher_better",
-        "synthetic": True,
-        "label": "Modeled % very happy",
+        "combine": "weighted_mean", "value": "pct_very_happy", "weight": "adult_pop",
+        "unit": "percent", "direction": "higher_better", "synthetic": True,
+        "label": "Modeled % very happy", "category": "community_vitality",
     },
 }
 
 
-def write_artifact(out_dir, tract_rows, zcta_rows, *, vintage: str, model_key: str, gss_years: str):
-    """Write the CSVs + aggregation_spec.json (with the mandatory synthetic-estimate caveat)."""
-    raise NotImplementedError("write CSVs + spec; embed caveat, model_key, gss_years, acs vintage")
+def write_spec(out_dir, geographies, *, vintage: str, model_key: str, gss_years: str):
+    """Write aggregation_spec.json next to the per-geography CSVs (happiness_<geo>.csv)."""
+    out_dir = Path(out_dir)
+    spec = {
+        "contract": CONTRACT,
+        "source": SOURCE,
+        "synthetic_estimate": True,
+        "caveat": CAVEAT,
+        "acs_vintage": vintage,
+        "model": model_key,
+        "gss_years": gss_years,
+        "layers": {
+            geo: {"file": f"happiness_{geo}.csv", "kind": "polygon_values", "id_field": "geoid"}
+            for geo in geographies
+        },
+        "metrics": {mid: {**m, "layer": list(geographies)} for mid, m in METRICS.items()},
+    }
+    (out_dir / "aggregation_spec.json").write_text(json.dumps(spec, indent=2))
+    return out_dir / "aggregation_spec.json"
