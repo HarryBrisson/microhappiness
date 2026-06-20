@@ -22,6 +22,7 @@ GSS_COLUMNS = (
     "wrkstat", "educ", "degree", "realinc", "income", "region",
     "health", "mntlhlth",           # self-rated health + poor-mental-health days (some years)
     "dwelown", "hompop", "childs", "hrs1",  # GNH domains: home ownership / household / kids / time
+    "born", "vetyears", "physhlth", "smoke", "wrkslf", "prestg10",  # more ACS/PLACES-analog constructs
     "wtssps", "wtssall",
 )
 
@@ -115,6 +116,22 @@ def recode_predictors(df: pd.DataFrame) -> pd.DataFrame:
     if "hrs1" in out:                                              # time balance         <-> ACS B23022
         hr = pd.to_numeric(out["hrs1"], errors="coerce")
         out["hours_worked"] = hr.where((hr >= 0) & (hr <= 89))     # NaN for non-workers / DK
+    # Further ACS/PLACES-analog constructs (for the full transparency catalog):
+    if "born" in out:                                              # nativity             <-> ACS B05002
+        out["us_born"] = out["born"].map({1: 1, 2: 0}).astype("Int64")
+    if "vetyears" in out:                                          # veteran status       <-> ACS B21001
+        vy = pd.to_numeric(out["vetyears"], errors="coerce")
+        out["veteran"] = (vy > 1).where(vy.isin([1, 2, 3, 4])).astype("Int64")  # 1=none,2-4=served
+    if "physhlth" in out:                                          # physical health      <-> PLACES PHLTH
+        ph = pd.to_numeric(out["physhlth"], errors="coerce")
+        out["poor_phys_health"] = (ph >= 14).where(ph.notna()).astype("Int64")
+    if "smoke" in out:                                             # smoking              <-> PLACES CSMOKING
+        out["smoker"] = out["smoke"].map({1: 1, 2: 0}).astype("Int64")
+    if "wrkslf" in out:                                            # self-employment      <-> ACS B24080
+        out["self_employed"] = out["wrkslf"].map({1: 1, 2: 0}).astype("Int64")
+    if "prestg10" in out:                                          # occ. prestige        <-> ACS occupation
+        pr = pd.to_numeric(out["prestg10"], errors="coerce")
+        out["occ_prestige"] = pr.where(pr > 0)
     return out
 
 
