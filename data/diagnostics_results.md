@@ -55,4 +55,38 @@ children, hours worked) + three non-ACS GSS items as a reference.
 
 **Gated reproducible predictor set:** marital, income, lives_alone, home_owner, race/ethnicity, age
 (+ sex/education/employment as poststrat structure) from ACS, **+ health & mental_health from PLACES**.
-Next: fit M1–M5 and measure the *combined* ceiling lift over M0's 0.041.
+
+## Step 2 — candidate-model comparison (pooled 5-fold pseudo-R²)
+
+Each model on its own listwise sample:
+
+| model | predictors | n | pseudo-R² |
+|---|---|---|---|
+| M1 minimal (marital+income+age) | 3 | 67,374 | 0.042 |
+| M0/M3 demographics (rich) | 9 | 30,990 | 0.045 |
+| M4 + general health | 10 | 20,003 | **0.060** |
+| M5 + health+mental+smoking | 12 | **0 — uncomputable (see below)** | — |
+
+PLACES-margin lift over a co-observed demographic core (each on its own sample, core re-fit on the
+same rows for an apples-to-apples delta):
+
+| + margin | n | core R² | +margin R² | lift |
+|---|---|---|---|---|
+| **health** | 51,879 | 0.051 | **0.066** | **+0.015** |
+| **mental_health** | 12,069 | 0.044 | **0.057** | **+0.014** |
+| smoking | 14,906 | 0.039 | 0.041 | +0.002 |
+| all three together | **0** | — | — | modules don't overlap |
+
+**Reads:**
+- **General health is the single biggest lever** (+0.015, ~30% relative over demographics) — the PLACES
+  strategy is vindicated. Mental health adds a similar lift on its smaller sample.
+- **Smoking adds only +0.002 incrementally** (its univariate 0.005 mostly overlaps demographics/SES).
+  Kept as a distinct behavioral marker for *level* estimation, but a minor contributor — set expectations.
+- M1 (3 vars) ≈ M0 (9 vars): most demographic signal is in marital+income+age; the extras are thin.
+- **KEY CONSTRAINT:** the PLACES predictors are asked in non-overlapping GSS year-modules, so the full
+  model has **zero complete cases**. The production fit therefore CANNOT be listwise — it needs multiple
+  imputation or per-coefficient partial pooling across modules (a real design requirement for estimate.py).
+
+**Bottom line:** demographics-only ≈ 0.045; + the PLACES health margins → ≈ 0.060–0.066. Still "low"
+in absolute terms (happiness is hard), but a meaningful, honest lift. Ship with synthetic-estimate
+framing; the health margin is what makes it worth more than a pure-ACS model.
