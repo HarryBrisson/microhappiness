@@ -28,6 +28,10 @@ LOCAL_SOURCE = {
     "race_ethnicity": "ACS B03002",
     "health": "CDC PLACES GHLTH (fair-or-poor)",   # the PLACES-unlocked margin
     "mental_health": "CDC PLACES MHLTH (some GSS years only)",
+    "home_owner": "ACS B25003 (tenure)",           # GNH material wellbeing
+    "lives_alone": "ACS B11001 (1-person households)",  # GNH social connectedness
+    "num_children": "ACS B09002 / B11003",         # GNH material/social
+    "hours_worked": "ACS B23022 (usual hours)",    # GNH time balance
     # constructs GSS shows matter but ACS/PLACES can't supply -> cannot poststratify (document, exclude):
     "attend": None,      # religious attendance
     "trust": None,       # social trust
@@ -125,7 +129,8 @@ def main() -> None:
             df[col] = df[col].where(df[col] <= hi)
 
     candidates = ["marital", "income", "employment", "education", "age", "sex", "race_ethnicity",
-                  "health", "mental_health", "attend", "polviews", "satfin"]
+                  "health", "mental_health", "home_owner", "lives_alone", "num_children",
+                  "hours_worked", "attend", "polviews", "satfin"]
     rows = screen(df, candidates)
     print(f"{'predictor':15} {'oosR2':>7} {'n':>7} {'stable':>6}  local source / note")
     print("-" * 72)

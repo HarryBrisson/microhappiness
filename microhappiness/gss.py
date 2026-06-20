@@ -21,6 +21,7 @@ GSS_COLUMNS = (
     "year", "happy", "marital", "age", "sex", "race", "hispanic",
     "wrkstat", "educ", "degree", "realinc", "income", "region",
     "health", "mntlhlth",           # self-rated health + poor-mental-health days (some years)
+    "dwelown", "hompop", "childs", "hrs1",  # GNH domains: home ownership / household / kids / time
     "wtssps", "wtssall",
 )
 
@@ -102,6 +103,18 @@ def recode_predictors(df: pd.DataFrame) -> pd.DataFrame:
     if "mntlhlth" in out:
         mh = pd.to_numeric(out["mntlhlth"], errors="coerce")
         out["mental_health"] = (mh >= 14).where(mh.notna()).astype("Int64")
+    # GNH-domain candidates, each fittable in GSS AND reproducible locally (ACS):
+    if "dwelown" in out:                                            # material wellbeing  <-> ACS B25003
+        out["home_owner"] = out["dwelown"].map({1: 1, 2: 0, 3: 0}).astype("Int64")
+    if "hompop" in out:                                            # social connectedness <-> ACS B11001
+        hp = pd.to_numeric(out["hompop"], errors="coerce")
+        out["lives_alone"] = (hp == 1).where(hp >= 1).astype("Int64")
+    if "childs" in out:                                            # material/social      <-> ACS B09002
+        ch = pd.to_numeric(out["childs"], errors="coerce")
+        out["num_children"] = ch.where(ch <= 8)                    # GSS tops at "8 or more"; 9=NA
+    if "hrs1" in out:                                              # time balance         <-> ACS B23022
+        hr = pd.to_numeric(out["hrs1"], errors="coerce")
+        out["hours_worked"] = hr.where((hr >= 0) & (hr <= 89))     # NaN for non-workers / DK
     return out
 
 

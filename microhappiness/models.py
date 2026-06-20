@@ -50,7 +50,8 @@ M0_CEILING = ModelSpec(
     key="m0_ceiling",
     label="Ceiling probe",
     purpose="Measure the ACS-derivable variance ceiling (McFadden R²) before committing — honesty gate.",
-    cell_predictors=("marital", "income", "employment", "education", "age", "sex", "race_ethnicity"),
+    cell_predictors=("marital", "income", "employment", "education", "age", "sex", "race_ethnicity",
+                     "home_owner", "lives_alone"),
     quadratic=("age",),
     notes="Not necessarily a production model. If pseudo-R² is near-zero, reframe the product.",
 )
@@ -78,7 +79,8 @@ M3_RICH = ModelSpec(
     key="m3_rich",
     label="Disciplined-rich / full MRP",
     purpose="Fullest defensible individual model with raked per-area joint poststrat tables.",
-    cell_predictors=("marital", "income", "employment", "education", "age", "sex", "race_ethnicity"),
+    cell_predictors=("marital", "income", "employment", "education", "age", "sex", "race_ethnicity",
+                     "home_owner", "lives_alone"),
     quadratic=("age",),
     random_effects=("region",),
     notes="Requires IPF/raking to synthesize the per-tract joint table (see poststratify.py).",
@@ -90,7 +92,8 @@ M4_HEALTH = ModelSpec(
     purpose="M3 + self-rated health — the strongest happiness predictor ACS lacks, made local via PLACES.",
     # `health` is fit on GSS HEALTH (individual) and raked in per-area from the PLACES GHLTH marginal;
     # the GSS/PUMS seed carries the demographics x health correlation. See places.py / poststratify.py.
-    cell_predictors=("marital", "income", "employment", "education", "age", "sex", "race_ethnicity", "health"),
+    cell_predictors=("marital", "income", "employment", "education", "age", "sex", "race_ethnicity",
+                     "home_owner", "lives_alone", "health"),
     quadratic=("age",),
     random_effects=("region",),
     notes="Expected to lift the variance ceiling most. Caveats: synthetic-on-synthetic (PLACES is "
@@ -110,7 +113,7 @@ M5_AFFECT = ModelSpec(
     "life-evaluation), so not circular — wellbeing science separates life-evaluation, affect, "
     "eudaimonia, and illbeing. Fit on GSS MNTLHLTH, raked from the PLACES MHLTH margin.",
     cell_predictors=("marital", "income", "employment", "education", "age", "sex", "race_ethnicity",
-                     "health", "mental_health"),
+                     "home_owner", "lives_alone", "health", "mental_health"),
     quadratic=("age",),
     random_effects=("region",),
     notes="GSS MNTLHLTH is asked only in some years -> its coefficient is fit on a GSS subset (smaller "

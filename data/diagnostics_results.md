@@ -19,30 +19,40 @@ literature could not pin (4 ceiling claims were refuted in the research pass).
 
 ## Step 1 — broad predictor screen (single-predictor out-of-sample pseudo-R²)
 
+Screened the ACS/PLACES-aligned set + four GNH-USA-domain candidates (home ownership, lives-alone,
+children, hours worked) + three non-ACS GSS items as a reference.
+
 | predictor | oos R² | n | era-stable | locally reproducible |
 |---|---|---|---|---|
-| satfin (financial satisfaction) | 0.052 | 71,013 | ✓ | ❌ not in ACS |
+| satfin (financial satisfaction) | 0.049 | 71,013 | ✓ | ❌ not in ACS |
 | **marital** | 0.038 | 75,633 | ✓ | ✅ ACS B12001 |
 | **health** | 0.020 | 58,448 | ✓ | ✅ PLACES GHLTH |
 | **mental_health** | 0.016 | 13,242 | ✓ | ✅ PLACES MHLTH (some years) |
-| income | 0.014 | 67,843 | ✓ | ✅ ACS B19001 |
-| attend (religion) | 0.012 | 74,966 | ✓ | ❌ |
-| race_ethnicity | 0.008 | 75,699 | ✓ | ✅ ACS B03002 |
-| polviews (ideology) | 0.003 | 65,878 | ✓ | ❌ |
+| attend (religion) | 0.015 | 74,966 | ✓ | ❌ |
+| **income** | 0.014 | 67,843 | ✓ | ✅ ACS B19001 |
+| **lives_alone** *(GNH: social)* | 0.011 | 72,096 | ✓ | ✅ ACS B11001 |
+| **home_owner** *(GNH: material)* | 0.010 | 37,258 | ✓ | ✅ ACS B25003 |
+| **race_ethnicity** | 0.008 | 75,699 | ✓ | ✅ ACS B03002 |
+| polviews (ideology) | 0.004 | 65,878 | ✓ | ❌ |
 | age | 0.002 | 74,829 | ✓ | ✅ ACS B01001 |
+| num_children *(GNH)* | 0.001 | 75,407 | ✓ | ✅ but ~0 → drop |
 | education | 0.001 | 75,413 | ✓ | ✅ ACS B15003 |
 | sex | 0.000 | 75,568 | ✗ | ✅ ACS B01001 |
-| employment | -0.000 | 75,699 | ✗ | ✅ ACS B23025 |
+| hours_worked *(GNH: time)* | ~0.000 | 43,328 | ✗ | ✅ but ~0 → drop |
+| employment | -0.000 | 75,699 | ✗ | ✅ ACS B23025 (recode weak — see note) |
 
 **Reads:**
-- The two **PLACES-unlocked predictors (health, mental_health) are the 3rd & 4th strongest overall**
-  and the top *non-demographic* locally-reproducible signals — this justifies bringing PLACES in.
-- `marital` is the strongest ACS-derivable predictor, confirming the literature.
-- The single strongest predictor, `satfin` (financial satisfaction), is **not** ACS-reproducible —
-  the gate excludes it, but it hints that subjective financial wellbeing carries more than raw income.
-- `age`/`education`/`sex`/`employment` are near-zero *alone* (they may still matter via interactions/
-  the U-shape and as poststrat structure) — flagged for the model-comparison stage, not auto-dropped.
+- The two **PLACES-unlocked predictors (health, mental_health) are the strongest reproducible
+  non-demographic signals** — PLACES justified.
+- `marital` leads the ACS predictors, confirming the literature.
+- **The GNH lens added two keepers: `lives_alone` (0.011) and `home_owner` (0.010)** — both beat
+  race/age/education and have clear mechanisms (social connectedness, material wellbeing). `num_children`
+  and `hours_worked` were screened and **disconfirmed** (~0, matching the kids≈null literature) → dropped.
+- The single strongest predictor overall, `satfin` (financial satisfaction), is **not** ACS-reproducible
+  → gated out (but hints subjective financial wellbeing > raw income).
+- **`employment` ≈ 0 is likely a recode artifact** (full-time-vs-rest lumps retirees/students/homemakers;
+  the real effect is *unemployed*-vs-not). Recode as a TODO before final model selection.
 
-**Gated predictor set for the candidate models:** marital, income, race/ethnicity, age (+ sex,
-education, employment as poststrat structure) from ACS, **+ health and mental_health from PLACES**.
-Next: fit M1–M5 and measure the *combined* ceiling lift from adding the PLACES margins over M0's 0.041.
+**Gated reproducible predictor set:** marital, income, lives_alone, home_owner, race/ethnicity, age
+(+ sex/education/employment as poststrat structure) from ACS, **+ health & mental_health from PLACES**.
+Next: fit M1–M5 and measure the *combined* ceiling lift over M0's 0.041.

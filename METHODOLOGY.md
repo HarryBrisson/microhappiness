@@ -114,6 +114,16 @@ backed by a **clear, logical mechanism** — a human call that keeps the model p
 against spurious correlations. This re-ranks predictors against the data while still refusing the
 kitchen sink.
 
+We use the **GNH-USA domains** (psychological wellbeing, social connectedness, material wellbeing,
+health, time balance, religion/spirituality, lifelong learning, good governance, community vitality,
+physical environment, culture) as the *breadth checklist* — for each domain, is there a GSS item to
+fit on AND a local (ACS/PLACES) source to reproduce? Most fail one side (religion, governance,
+environment, culture have no tract-level reproducible source, or no GSS analog), but the screen
+confirmed two **material/social** additions that clear both bars and the data: **home ownership**
+(GNH material; ACS B25003) and **living alone** (GNH social; ACS B11001). `num_children` and
+`hours_worked` were screened and disconfirmed (~0), so dropped. The non-reproducible-but-strong
+domains (religion, governance, environment) are candidates for coarse *area-level covariates* later.
+
 ## 3. Temporal dimension (decades of GSS × ACS vintages)
 
 GSS runs 1972→present; ACS gives matching demographics per year (5-yr tract from 2009; decennial
