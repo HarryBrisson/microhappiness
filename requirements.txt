@@ -1,0 +1,7 @@
+# Modeling + data pipeline (build-time only; downstream consumers read the published artifact).
+pandas>=2.0
+numpy>=1.24
+statsmodels>=0.14      # ordinal / multilevel logit fits
+pyreadstat>=1.2        # read GSS .dta / .sav
+requests>=2.31         # Census API
+# pandas reads Stata natively; pyreadstat is the faster/robust path for SPSS + value labels.

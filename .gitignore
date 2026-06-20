@@ -1,0 +1,22 @@
+# Data — large / re-downloadable, never committed
+data/*.dta
+data/*.sav
+data/*.csv
+data/acs_cache/
+data/pums_cache/
+build/
+dist/
+*.egg-info/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+.env
+
+# Keep the research brief + small fixtures
+!data/research_brief.md
+__pycache__/
+*.pyc

@@ -1,0 +1,20 @@
+[project]
+name = "microhappiness"
+version = "0.0.1"
+description = "Modeled small-area subjective-happiness estimates for the US (GSS x ACS, CDC PLACES-style MRP)."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "statsmodels>=0.14",
+    "pyreadstat>=1.2",
+    "requests>=2.31",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["microhappiness"]
