@@ -57,7 +57,7 @@ def main() -> None:
     # The PLACES predictors live in different GSS year-modules, so a single all-complete sample is
     # empty. Measure each margin's lift over a CO-OBSERVED demographic core, each on its own sample
     # (core re-fit on the same rows for an apples-to-apples delta).
-    core = ["marital", "income", "age", "sex", "race_ethnicity", "education", "employment"]  # ~every year
+    core = ["marital", "income", "employment", "education", "home_owner", "lives_alone"]  # circumstantial
     print("\nPLACES-margin lift over the demographic core (each on its own co-observed sample):")
     print(f"  {'+ margin':28} {'n':>7}  {'core R²':>8}  {'+margin R²':>10}  {'lift':>7}")
     for label, extra in [("health", ["health"]), ("mental_health", ["mental_health"]),

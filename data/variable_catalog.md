@@ -14,17 +14,17 @@ pseudo-R², 1972–2022), and mark the rest **not directly estimable**. `✓ IN`
 | `B19001` | Household income | material wellbeing | income | 0.0156 | 67843 | ✓ IN model |
 | `B11001` | Household type / lives alone | social connectedness | lives_alone | 0.0120 | 72096 | ✓ IN model |
 | `B25003` | Home ownership (tenure) | material wellbeing | home_owner | 0.0093 | 37258 | ✓ IN model |
-| `B03002` | Race / ethnicity | community vitality | race_ethnicity | 0.0063 | 75699 | ✓ IN model |
+| `B03002` | Race / ethnicity | community vitality | race_ethnicity | 0.0063 | 75699 | ⊘ immutable identity → excluded by policy |
 | `B23025` | Employment status | material / time | employment | 0.0034 | 75652 | ✓ IN model |
 | `C24010` | Occupation (prestige proxy) | material / time | occ_prestige | 0.0034 | 70360 | · weak alone (dropped) |
 | `B11003` | Presence of children | material / social | num_children | 0.0012 | 75407 | · weak alone (dropped) |
-| `B01001` | Age | health / psychological | age | 0.0010 | 74829 | ✓ IN model |
+| `B01001` | Age | health / psychological | age | 0.0010 | 74829 | ⊘ immutable identity → excluded by policy |
 | `B24080` | Self-employment (class of worker) | material wellbeing | self_employed | 0.0007 | 71534 | · weak alone (dropped) |
 | `B15003` | Educational attainment | lifelong learning | education | 0.0006 | 75413 | ✓ IN model |
-| `B21001` | Veteran status | — | veteran | 0.0001 | 5741 | · weak alone (dropped) |
-| `B01001` | Sex | — | sex | 0.0000 | 75568 | ✓ IN model |
+| `B21001` | Veteran status | — | veteran | 0.0001 | 5741 | ⊘ immutable identity → excluded by policy |
+| `B01001` | Sex | — | sex | 0.0000 | 75568 | ⊘ immutable identity → excluded by policy |
 | `B23022` | Hours worked | time balance | hours_worked | 0.0000 | 43328 | · weak alone (dropped) |
-| `B05002` | Nativity (foreign-born) | community vitality | us_born | -0.0000 | 66324 | · weak alone (dropped) |
+| `B05002` | Nativity (foreign-born) | community vitality | us_born | -0.0000 | 66324 | ⊘ immutable identity → excluded by policy |
 | `C17002` | Poverty ratio | material wellbeing | — | — | — | ✗ no GSS analog → not directly estimable |
 | `C24030` | Industry | material wellbeing | — | — | — | ✗ no GSS analog → not directly estimable |
 | `B14001` | School enrollment | lifelong learning | — | — | — | ✗ no GSS analog → not directly estimable |

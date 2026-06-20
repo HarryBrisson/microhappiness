@@ -31,9 +31,10 @@ Robust GSS / wellbeing-literature predictors, split by whether ACS can supply th
 | **Household income** | strong cross-sectional gradient, on par with marital | ✅ | B19001 / B19013 |
 | **Employment (full-time)** | OR≈1.58 | ✅ | B23025 |
 | **Education** | modest, OR≈1.03/yr | ✅ | B15003 |
-| **Age** | U-shaped (dip in midlife) | ✅ | B01001 |
-| **Race / ethnicity** | next-tier unconditional gap | ✅ | B03002 |
-| **Sex** | small | ✅ | B01001 |
+| Age | U-shaped (dip in midlife) | ✅ but ⊘ **excluded (identity)** | B01001 |
+| Race / ethnicity | next-tier unconditional gap | ✅ but ⊘ **excluded (identity)** | B03002 |
+| Sex | small | ✅ but ⊘ **excluded (identity)** | B01001 |
+| Nativity / veteran | small | ✅ but ⊘ **excluded (identity)** | B05002 / B21001 |
 | Disability | negative | ✅ (proxy) | C18120 / B18101 |
 | **Self-rated health** | strong | ✅ **via PLACES** | CDC PLACES `GHLTH`, tract/ZCTA (see §1a) |
 | Religious attendance | positive | ❌ | — |
@@ -48,6 +49,24 @@ ACS predictors reach for `HAPPY` **was not reliably established in the literatur
 attempts to pin a number were contradicted). So we **measure it ourselves first** — see
 `diagnostics/step0_variance_ceiling.py`. If McFadden's pseudo-R² is near-zero, we reframe the
 product (or stop) rather than ship false precision.
+
+### 1·equity. Circumstantial predictors only — no immutable identity
+
+**Policy:** we model happiness from **mutable, circumstantial** factors (income, marital/household
+status, employment, education, home ownership, health, mental health) and **never** from **immutable
+identity** characteristics (age, sex, race/ethnicity, nativity, veteran status — `IMMUTABLE_IDENTITY`
+in `models.py`). Two reasons: (1) a neighborhood can't change its identity composition, so an
+identity-driven estimate is unactionable and would "reward"/"penalize" areas for who lives there; (2)
+the estimate should track **conditions you could improve**, not demographics.
+
+This is nearly free, and we measured it: dropping every identity predictor costs only **+0.0041**
+pseudo-R² (the identity variables are weak — race 0.006, age 0.001, sex 0.000), while the real levers
+(marital, income, health) are all circumstantial. If an area's identity composition correlates with
+happiness, that signal flows through its **circumstances** (income, health) — so a $50k household is
+estimated the same wherever it is, and the map reflects material conditions, not skin color or age.
+Identity variables remain in the transparency catalog, clearly marked `⊘ excluded by policy`, so the
+exclusion is visible rather than hidden. (Marital status and education are classified as
+circumstantial/socioeconomic, not identity — flag if you'd draw either line differently.)
 
 ### 1a. PLACES raises the ceiling — by supplying the health *marginal*
 
@@ -81,24 +100,25 @@ on, so it stays validation-only.
 Defined in [`microhappiness/models.py`](microhappiness/models.py). All are deliberately small —
 comprehensive ACS *data*, lean *model*.
 
-- **M0 — ceiling probe.** Fullest ACS-derivable set (marital + income + employment + education +
-  age + age² + sex + race/ethnicity). Purpose: measure the variance ceiling, not necessarily ship.
-- **M1 — minimal / transparent.** `HAPPY ~ marital + income + age + age²`. Two strongest signals +
-  the age U-shape. Most interpretable.
-- **M2 — PLACES-analog.** Compositional cells `age + sex + race/ethnicity + education` poststratified
-  on census joint counts, **plus area covariates** (tract % married, tract median income) and a
-  region random effect — mirrors CDC PLACES exactly. Sidesteps joint-table synthesis for the
-  hard-to-cross variables by treating them as context.
-- **M3 — disciplined-rich / full MRP.** `marital + income + employment + education + age + age² +
-  sex + race/ethnicity` as individual effects with **raked** per-area joint poststrat tables +
-  region random effects. The fullest defensible individual model.
-- **M4 — health-poststratified (PLACES-unlocked).** M3 **+ self-rated health**, fit on GSS `HEALTH`
-  and raked in per-area from the PLACES `GHLTH` marginal (§1a). Expected to lift the ceiling most;
-  carries the synthetic-on-synthetic caveat. Excludes mental health (the cautious health variant).
-- **M5 — health + mental-health.** M4 **+ mental-health-days** (GSS `MNTLHLTH` ↔ PLACES `MHLTH`). A
-  distinct illbeing/affect axis (§1a). The one variant that includes mental health; M1–M4 exclude it.
+All specs are **identity-free** (§1·equity). Measured ceilings (pooled 5-fold pseudo-R²) in brackets.
 
-**Nonlinearities:** age as a quadratic (U-shape); income as decile/log (diminishing returns).
+- **M0 — circumstantial ceiling probe** [0.035]. Fullest circumstantial set (marital + income +
+  employment + education + home_owner + lives_alone). Purpose: the step-0 honesty gate.
+- **M1 — minimal / transparent** [0.038]. `HAPPY ~ marital + income`. The two strongest circumstantial
+  signals; nearly as good as M0 with 2 variables.
+- **M2 — area-covariate.** A few individual circumstantial cells (marital + income + employment) **plus
+  area-level circumstantial covariates** (tract median income, % owner-occupied, % fair-poor health) +
+  region random effect — PLACES-style, sidesteps full joint synthesis. Covariates are all actionable,
+  never identity composition.
+- **M3 — circumstantial-rich** [0.041]. marital + income + employment + education + home_owner +
+  lives_alone, with **raked** per-area joint tables + region random effects.
+- **M4 — + self-rated health (PLACES-unlocked)** [0.057]. M3 **+ health**, fit on GSS `HEALTH` and
+  raked from the PLACES `GHLTH` marginal (§1a). The single biggest lever (+0.016).
+- **M5 — + mental-health + smoking.** M4 **+ mental-health-days** (GSS `MNTLHLTH` ↔ PLACES `MHLTH`,
+  +0.013) **+ smoking** (GSS `SMOKE` ↔ PLACES `CSMOKING`, +0.004 — a distinct level marker). M1–M4
+  exclude mental health so PLACES `MHLTH` can independently validate them.
+
+**Nonlinearities:** income as decile/log (diminishing returns).
 **Honesty:** report McFadden R², calibration, and bootstrap/Monte-Carlo CIs per area; never publish a
 point estimate without its interval.
 

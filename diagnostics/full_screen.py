@@ -17,6 +17,7 @@ from pathlib import Path
 
 from diagnostics.step1_screen import screen
 from microhappiness.gss import GSS_COLUMNS, load_gss, recode_predictors
+from microhappiness.models import IMMUTABLE_IDENTITY
 
 # (system, variable id/table, construct, GNH domain, GSS analog | None)
 CATALOG = [
@@ -76,8 +77,8 @@ CATALOG = [
     ("PLACES", "DISABILITY", "Any disability", "health", None),
 ]
 
-IN_MODEL = {"marital", "income", "lives_alone", "home_owner", "race_ethnicity", "age", "sex",
-            "education", "employment", "health", "mental_health", "smoker"}
+IN_MODEL = {"marital", "income", "lives_alone", "home_owner", "education", "employment",
+            "health", "mental_health", "smoker"}  # circumstantial only — identity excluded by policy
 INCLUDE_THRESHOLD = 0.005  # single-predictor pseudo-R² floor to flag as a non-trivial signal
 
 
@@ -87,14 +88,16 @@ def _status(analog, res):
     r = res.get(analog)
     if not r or r.get("oos_pseudo_r2") is None:
         return analog, str(r.get("n", 0) if r else 0), "✗ analog too sparse to fit"
-    r2, n = r["oos_pseudo_r2"], r["n"]
+    n = r["n"]
+    if analog in IMMUTABLE_IDENTITY:        # shown for transparency, but excluded by equity policy
+        return analog, str(n), "⊘ immutable identity → excluded by policy"
     if analog in IN_MODEL:
         decision = "✓ IN model"
-    elif r2 >= INCLUDE_THRESHOLD:
+    elif r["oos_pseudo_r2"] >= INCLUDE_THRESHOLD:
         decision = "○ candidate (screen ✓)"
     else:
         decision = "· weak alone (dropped)"
-    return analog, str(n), f"{decision}"
+    return analog, str(n), decision
 
 
 def main() -> None:

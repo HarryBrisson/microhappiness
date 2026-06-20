@@ -3,6 +3,14 @@
 Run on the full GSS cumulative file (597MB .dta, N≈75k with HAPPY). These numbers are the empirical
 basis for the model design; re-run after any recode change.
 
+> **⊘ EQUITY UPDATE — models are now identity-free.** All production specs exclude immutable identity
+> (age, sex, race/ethnicity, nativity, veteran); see METHODOLOGY §1·equity. Dropping identity costs
+> only **+0.0041** pseudo-R². Updated identity-free headline numbers: **Step-0 circumstantial ceiling
+> = 0.035**; **M1 (marital+income) = 0.038**; **M3 circumstantial-rich = 0.041**; **M4 +health = 0.057**
+> (health lift +0.016); mental-health +0.013; smoking +0.004. The identity-inclusive tables below are
+> kept for reference (the relationships are unchanged; magnitudes shift ~0.004). The per-variable
+> screen still lists identity variables, now marked `⊘ excluded by policy` in `variable_catalog.md`.
+
 ## Step 0 — variance ceiling (the honesty gate)
 
 Full ACS-derivable model **M0** (marital + income + employment + education + age + age² + sex +
