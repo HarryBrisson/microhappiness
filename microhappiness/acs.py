@@ -1,35 +1,38 @@
-"""ACS via the Census API: poststratification marginals + area covariates, tract and ZCTA.
+"""ACS via the Census API: per-tract marginal proportions for the v1 poststratification bins.
 
-Comprehensive on the *data* side (pull every table the candidate models might need) so the model
-side can stay lean. Categories here must mirror the GSS recodes in gss.py.
+Comprehensive on the data side is the v2 goal; v1 pulls exactly the tables the binned predictors need
+and returns, per tract GEOID, a proportion vector for each margin. Categories must mirror binning.py.
 
 Census API: https://api.census.gov/data/<year>/acs/acs5  (key required, CENSUS_API_KEY).
 """
 
 from __future__ import annotations
 
+import json
 import os
+from urllib.request import urlopen
 
-# Table IDs -> what they supply. Pull broadly; each candidate model uses a subset.
-ACS_TABLES = {
-    "B12001": "marital status by sex",
-    "B19001": "household income (16 brackets) -> income deciles",
-    "B19013": "median household income (area covariate)",
-    "B23025": "employment status (full-time / labor force)",
-    "B01001": "age x sex (poststrat backbone)",
-    "B15003": "educational attainment (25+)",
-    "B03002": "race x hispanic origin",
-    "C18120": "disability x employment (optional predictor)",
-    "B11001": "household type (composition, optional)",
+import pandas as pd
+
+API = "https://api.census.gov/data/{year}/acs/acs5"
+
+# Table -> the variables we sum into each bin (codes verified against the ACS group metadata).
+MARRIED = ["B12001_004E", "B12001_013E"]          # now-married male + female / B12001_001E
+TENURE = {"owner": "B25003_002E", "total": "B25003_001E"}
+HH = {"alone": "B11001_008E", "total": "B11001_001E"}
+EMP = {"employed": ["B23025_004E", "B23025_006E"], "unemployed": ["B23025_005E"],
+       "nilf": ["B23025_007E"]}                    # armed forces folded into employed
+INCOME_BINS = {                                     # B19001 brackets -> 4 income groups
+    0: [f"B19001_{i:03d}E" for i in range(2, 6)],   # <25k  (<10,10-15,15-20,20-25)
+    1: [f"B19001_{i:03d}E" for i in range(6, 11)],  # 25-50k
+    2: [f"B19001_{i:03d}E" for i in range(11, 14)], # 50-100k
+    3: [f"B19001_{i:03d}E" for i in range(14, 18)], # 100k+
 }
+INCOME_TOTAL = "B19001_001E"
 
-# Area-level covariates for the PLACES-analog model (joined by GEOID, not poststratified).
-AREA_COVARIATES = {
-    "pct_married": ("B12001", "married-of-15+"),
-    "median_income_z": ("B19013", "z-scored within nation/year"),
-}
-
-GEOGRAPHIES = ("tract", "zcta")
+_VARS = (["B12001_001E", *MARRIED, TENURE["owner"], TENURE["total"], HH["alone"], HH["total"],
+          *sum(EMP.values(), []), INCOME_TOTAL]
+         + [v for vs in INCOME_BINS.values() for v in vs])
 
 
 def census_key() -> str:
@@ -39,26 +42,43 @@ def census_key() -> str:
     return key
 
 
-def fetch_marginals(year: int, geography: str, tables: tuple[str, ...] = tuple(ACS_TABLES)) -> "pd.DataFrame":
-    """Return per-area marginal counts for each requested table, keyed by GEOID.
+def _get(year, variables, state, key):
+    url = (API.format(year=year) + "?get=" + ",".join(variables)
+           + f"&for=tract:*&in=state:{state}&key={key}")
+    rows = json.loads(urlopen(url, timeout=300).read())
+    df = pd.DataFrame(rows[1:], columns=rows[0])
+    for v in variables:
+        df[v] = pd.to_numeric(df[v], errors="coerce")
+    df["geoid"] = df["state"] + df["county"] + df["tract"]
+    return df.set_index("geoid")
 
-    Implementation plan: page the Census API per table (it caps variables/call), recode raw
-    variable columns into the model categories (mirror gss.recode_predictors), and return a tidy
-    {GEOID, dimension, category, count} frame that poststratify.py rakes into a joint table.
-    For ZCTA the predicate is `for=zip code tabulation area:*`; for tract it's `for=tract:*&in=state:..`.
+
+def fetch_acs_margins(state: str, year: int = 2022, key: str | None = None) -> dict:
+    """{geoid: {margin_name: proportion-vector}} for married/employment/home_owner/lives_alone/income4.
+
+    Each margin is a dict of bin->proportion that sums to ~1 (rows with a zero denominator are dropped).
     """
-    raise NotImplementedError("fetch_marginals: page Census API per table, recode to model categories")
-
-
-def fetch_area_covariates(year: int, geography: str) -> "pd.DataFrame":
-    """Return {GEOID: {pct_married, median_income_z, ...}} for the PLACES-analog area terms."""
-    raise NotImplementedError("fetch_area_covariates: B12001/B19013 -> covariates")
-
-
-def fetch_census_joint_cells(year: int, geography: str) -> "pd.DataFrame":
-    """Census joint counts for age x sex x race x education (the M2/PLACES poststrat cells).
-
-    These come closest to a published *joint* distribution; M2 uses them directly and avoids
-    synthesizing a joint via raking. Returns {GEOID, age_bucket, sex, race_ethnicity, education, count}.
-    """
-    raise NotImplementedError("fetch_census_joint_cells: published joint age/sex/race/edu cells")
+    key = key or census_key()
+    df = _get(year, _VARS, state, key)
+    out = {}
+    for geoid, r in df.iterrows():
+        m = {}
+        tot = r["B12001_001E"]
+        if tot and tot > 0:
+            p = (r[MARRIED[0]] + r[MARRIED[1]]) / tot
+            m["married"] = {1.0: p, 0.0: 1 - p}
+        et = sum(r[v] for vs in EMP.values() for v in vs)
+        if et and et > 0:
+            m["employment"] = {k: sum(r[v] for v in vs) / et for k, vs in EMP.items()}
+        if r[TENURE["total"]] and r[TENURE["total"]] > 0:
+            p = r[TENURE["owner"]] / r[TENURE["total"]]
+            m["home_owner"] = {1.0: p, 0.0: 1 - p}
+        if r[HH["total"]] and r[HH["total"]] > 0:
+            p = r[HH["alone"]] / r[HH["total"]]
+            m["lives_alone"] = {1.0: p, 0.0: 1 - p}
+        it = r[INCOME_TOTAL]
+        if it and it > 0:
+            m["income4"] = {float(b): sum(r[v] for v in vs) / it for b, vs in INCOME_BINS.items()}
+        if len(m) == 5:  # keep only fully-populated tracts
+            out[geoid] = m
+    return out

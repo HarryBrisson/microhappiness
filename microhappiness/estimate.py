@@ -1,38 +1,79 @@
-"""Fit a candidate model on GSS, predict each poststrat cell, aggregate to area estimates + CIs.
+"""Fit the v1 happiness model on GSS, build the poststrat seed, and estimate per-tract happiness.
 
-The MRP core: P(happy | cell) from the survey model, weighted by the cell's ACS population, summed
-per area. Uncertainty by Monte-Carlo over the fitted model (PLACES draws ~1,000 datasets); GSS's
-smaller sample yields wider intervals — let those set the minimum credible reporting geography.
+v1 model = M4 (circumstantial + general health), binned (binning.py). Two simple, robust fits on the
+GSS cells: a binary logit for `pct_very_happy` and an OLS on the 0/50/100 score for `happiness_index`.
+Both predicted per seed cell, then poststratified (raked) onto each tract's ACS+PLACES margins.
+
+The PLACES module-pooling problem (M5's mental/smoking live in disjoint GSS years) does NOT bite here:
+health is asked in most years, so M4 fits on a large complete-case sample. M5 + uncertainty are v2.
 """
 
 from __future__ import annotations
 
-from microhappiness.models import INDEX_CODING, ModelSpec
+import numpy as np
+import pandas as pd
+
+from microhappiness.binning import PREDICTORS
+from microhappiness.poststratify import rake
+
+_FORMULA_RHS = "married + C(employment) + home_owner + lives_alone + income4 + I(income4**2) + health"
 
 
-def fit(spec: ModelSpec, gss_df, *, temporal: bool = False):
-    """Fit `spec` on recoded GSS microdata (ordinal/proportional-odds + binary very-happy).
+def fit_models(gss_binned):
+    """Fit the binary very-happy logit + the 0-100 index OLS on complete GSS cells. Returns (logit, ols)."""
+    import statsmodels.formula.api as smf
 
-    With temporal=True, add year random effects + marital/income x era interactions and fit the
-    pooled 1972-present series so coefficients can drift by era (TEMPORAL_OVERLAY).
+    d = gss_binned.dropna(subset=["happy", *PREDICTORS]).copy()
+    d["very_happy"] = (d["happy"] == 3).astype(int)
+    d["score"] = d["happy"].map({3: 100.0, 2: 50.0, 1: 0.0})
+    logit = smf.logit(f"very_happy ~ {_FORMULA_RHS}", data=d).fit(disp=0)
+    ols = smf.ols(f"score ~ {_FORMULA_RHS}", data=d).fit()
+    return logit, ols, len(d)
+
+
+def build_seed(gss_binned):
+    """GSS joint over the binned predictors -> (cells DataFrame, weight vector, per-cell predictions src).
+
+    Returns a DataFrame with one row per observed cell (the predictor columns) and a normalised weight.
     """
-    raise NotImplementedError("fit ordinal + binary logit with GSS weights; optional era interactions")
+    d = gss_binned.dropna(subset=PREDICTORS).copy()
+    wcol = "wtssps" if "wtssps" in d and d["wtssps"].notna().any() else None
+    d["_w"] = d[wcol].fillna(1.0) if wcol else 1.0
+    seed = d.groupby(list(PREDICTORS), as_index=False)["_w"].sum()
+    seed["_w"] /= seed["_w"].sum()
+    return seed
 
 
-def predict_cells(model, poststrat_table, area_covariates=None):
-    """Predicted P(very happy) and E[happiness_index] per poststrat cell per area."""
-    raise NotImplementedError("apply fitted model to each cell; join area covariates for M2")
+def predict_cells(seed, logit, ols):
+    """Attach pct_very_happy + happiness_index predictions to each seed cell."""
+    seed = seed.copy()
+    seed["pct_very"] = logit.predict(seed) * 100.0
+    seed["index"] = ols.predict(seed)
+    return seed
 
 
-def aggregate_to_areas(cell_predictions, cell_populations):
-    """Population-weighted sum of cell predictions -> per-area estimate.
+def estimate_tract(seed_cols, w0, preds, acs_margin, health_fraction):
+    """Rake the seed to one tract's margins (+ health) and return its happiness estimates."""
+    margins = dict(acs_margin)
+    margins["health"] = {1.0: health_fraction, 0.0: 1.0 - health_fraction}
+    w = rake(seed_cols, w0, margins)
+    return {
+        "happiness_index": float(np.dot(w, preds["index"].to_numpy())),
+        "pct_very_happy": float(np.dot(w, preds["pct_very"].to_numpy())),
+    }
 
-    Returns rows: {geoid, happiness_index, pct_very_happy, adult_pop}. index = E[score] on
-    INDEX_CODING (0/50/100), i.e. a 0-100 happiness index.
-    """
-    raise NotImplementedError("sum_c P(c)*pop(c) / sum_c pop(c)")
 
-
-def monte_carlo_ci(model, poststrat_table, cell_populations, *, draws: int = 1000):
-    """Per-area standard errors / CIs by simulating from the fitted model's coefficient covariance."""
-    raise NotImplementedError("draw coefficients, re-aggregate, take per-area percentiles")
+def estimate_state(gss_binned, acs_margins, places_health):
+    """Estimate every tract that has both ACS margins and a PLACES health value. -> DataFrame."""
+    logit, ols, n_fit = fit_models(gss_binned)
+    seed = predict_cells(build_seed(gss_binned), logit, ols)
+    seed_cols = {p: seed[p].to_numpy() for p in PREDICTORS}
+    w0 = seed["_w"].to_numpy()
+    rows = []
+    for geoid, margin in acs_margins.items():
+        h = places_health.get(geoid)
+        if not h:
+            continue
+        est = estimate_tract(seed_cols, w0, seed, margin, h["fraction"])
+        rows.append({"geoid": geoid, **est, "adult_pop": h["adult_pop"]})
+    return pd.DataFrame(rows), {"n_fit": n_fit, "n_cells": len(seed)}

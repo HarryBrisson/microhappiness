@@ -1,28 +1,38 @@
-"""Per-area joint poststratification tables via iterative proportional fitting (raking).
+"""Per-area joint poststratification by iterative proportional fitting (raking).
 
-PUMS microdata is only identified to PUMA, so we can't read a tract's joint demographic distribution
-directly. IPF/raking synthesizes it: take a disaggregate seed (PUMS, or a national joint) and adjust
-it to match each area's published ACS marginals (gss-aligned categories). PopulationSim / RTI
-SynthPop are production prior art for exactly this.
-
-M2 (PLACES-analog) skips this — it uses census published joint cells + area covariates instead.
+We can't read a tract's joint demographic distribution directly, so we rake a national SEED (the GSS
+joint over the binned predictors) to each tract's published marginals (ACS + the PLACES health margin).
+The seed supplies the correlation structure (e.g. married x owner x income); the margins tilt it to the
+tract. Cells absent from the seed stay at zero (we can't invent mass for combos GSS never observed).
 """
 
 from __future__ import annotations
 
+import numpy as np
 
-def rake(seed, marginals, *, max_iter: int = 50, tol: float = 1e-6):
-    """Fit a joint cell table to a set of marginal controls by IPF.
 
-    seed: array of joint cell weights (the national/PUMS prior shape).
-    marginals: list of (axis, target_vector) controls from ACS for one area.
-    Returns the raked joint table whose every margin matches its ACS control (within tol).
-    Pitfalls to handle: zero-marginal cells, non-convergence, and small-area instability — log and
-    fall back to the area's parent (county/PUMA) joint when a tract's marginals are too sparse.
+def rake(seed_cells, seed_w, margins, *, iters: int = 40, tol: float = 1e-9):
+    """Rake seed weights to the marginal targets.
+
+    seed_cells: dict {predictor: np.array of that predictor's level per cell}.
+    seed_w:     np.array of seed proportions per cell (will be normalised).
+    margins:    {predictor: {level: target_proportion}} — only predictors present here are controlled.
+    Returns the raked weight vector (sums to 1).
     """
-    raise NotImplementedError("IPF: scale seed to each marginal in turn until margins converge")
-
-
-def build_poststrat_table(area_marginals, seed):
-    """{GEOID -> joint cell table} for every area, raking the shared seed to each area's marginals."""
-    raise NotImplementedError("loop areas -> rake(seed, area_marginals[geoid])")
+    w = np.asarray(seed_w, dtype=float).copy()
+    w /= w.sum()
+    for _ in range(iters):
+        prev = w
+        for pred, targets in margins.items():
+            col = seed_cells[pred]
+            for level, target in targets.items():
+                mask = col == level
+                cur = w[mask].sum()
+                if cur > 0 and target > 0:
+                    w[mask] *= target / cur
+                elif target == 0:
+                    w[mask] = 0.0
+            w /= w.sum()
+        if np.max(np.abs(w - prev)) < tol:
+            break
+    return w

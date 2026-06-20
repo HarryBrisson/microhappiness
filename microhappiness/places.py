@@ -1,50 +1,45 @@
-"""CDC PLACES tract/ZCTA health estimates — the poststratification marginal ACS can't give us.
+"""CDC PLACES tract health estimates — the poststratification margin ACS can't give us.
 
-PLACES publishes modeled small-area health measures at tract AND ZCTA level (our exact target geo).
-Its value here is specific, not generic: self-rated GENERAL health (% fair-or-poor) is one of the
-strongest happiness predictors that ACS lacks. GSS carries self-rated health (HEALTH) at the
-individual level, so we can FIT happiness ~ health; PLACES then supplies each area's health MARGINAL
-to poststratify on, raked into the per-area joint table (the GSS/PUMS seed carries the
-demographics x health correlation, so we never need an observed joint).
+PLACES publishes modeled health prevalence at tract AND ZCTA (our exact geography). Its value here is
+specific: self-rated GENERAL health (% fair-or-poor, measure GHLTH) is one of the strongest happiness
+predictors ACS lacks. We fit happiness ~ health on GSS HEALTH and rake the PLACES margin into each
+area's joint table (the GSS seed carries the circumstance x health correlation).
 
-So: ACS = demographic margins, PLACES = the health margin, GSS = the model AND the joint seed.
+So: ACS = circumstantial margins, PLACES = the health margin, GSS = the model AND the joint seed.
 
-CAUTIONS (see METHODOLOGY.md):
-- Synthetic-on-synthetic: PLACES is itself modeled (BRFSS -> ACS MRP). Uncertainty compounds; label it.
-- Definitional alignment: collapse GSS HEALTH (excellent/good/fair/poor) to PLACES 'fair-or-poor'
-  so the raking control total is consistent with the fitted predictor.
-- NOT circular: PLACES 'mental health not good' is an illbeing/affect axis, conceptually DISTINCT from
-  HAPPY's global life-evaluation (wellbeing science separates life-evaluation, affect, eudaimonia,
-  illbeing). So MHLTH is a legitimate predictor (model M5) AND an independent validation target for
-  the models that EXCLUDE it (M1-M4). It just needs a GSS individual analog (MNTLHLTH) to fit on, which
-  exists only in some GSS years. Depression has no clean GSS individual analog -> validation only.
+CAUTIONS (see METHODOLOGY.md): synthetic-on-synthetic (PLACES is itself a BRFSS->ACS MRP, so uncertainty
+compounds — label it); align GSS HEALTH to PLACES 'fair-or-poor'. Mental health (MHLTH) is a DISTINCT
+axis (not circular) usable as a predictor (M5) where a GSS analog exists; depression -> validation only.
 
-Source: PLACES API (data.cdc.gov), tract + ZCTA releases.
+Source: PLACES tract release on data.cdc.gov (SODA resource cwsq-ngmh): locationname=tract GEOID,
+data_value=prevalence %, totalpopulation=adult population.
 """
 
 from __future__ import annotations
 
-# Measures usable as poststratification predictors (have a GSS individual analog to fit on).
-PREDICTOR_MEASURES = {
-    "GHLTH": "fair-or-poor self-rated general health (% adults)",   # <- GSS HEALTH; the health margin
-    "MHLTH": "mental health not good >=14 days (% adults)",         # <- GSS MNTLHLTH (subset of years); M5
-    "CSMOKING": "current smoking (% adults)",                       # <- GSS SMOKE; behavioral distress marker; M5
-}
+import json
+from urllib.parse import quote
+from urllib.request import urlopen
 
-# Measures used for VALIDATION (and as predictors only where a GSS analog exists, above).
-VALIDATION_MEASURES = {
-    "MHLTH": "mental health not good >=14 days (% adults)",   # validates M1-M4 (which exclude it)
-    "DEPRESSION": "diagnosed depression (% adults)",          # no GSS analog -> validation only
-}
-
-GEOGRAPHIES = ("tract", "zcta")
+RESOURCE = "https://data.cdc.gov/resource/cwsq-ngmh.json"
+PREDICTOR_MEASURES = {"GHLTH": "fair-or-poor self-rated health", "MHLTH": "frequent mental distress",
+                      "CSMOKING": "current smoking"}
+VALIDATION_MEASURES = {"MHLTH": "mental distress (validates M1-M4)", "DEPRESSION": "depression (validation only)"}
 
 
-def fetch_health_marginal(geography: str, measure: str = "GHLTH", release: str | None = None):
-    """{GEOID: fair_or_poor_health_fraction} for raking into the per-area joint table.
-
-    Plan: pull the PLACES tract/ZCTA release from data.cdc.gov for `measure`, return the crude (or
-    age-adjusted — pick one and document) prevalence as a fraction per GEOID, plus its CI so the
-    synthetic-on-synthetic uncertainty can flow into estimate.monte_carlo_ci.
-    """
-    raise NotImplementedError("fetch PLACES measure -> {GEOID: fraction, ci}")
+def fetch_measure(state_abbr: str, measure: str = "GHLTH") -> dict:
+    """{geoid: {'fraction': p, 'adult_pop': n}} for a PLACES measure at tract level in a state."""
+    out = {}
+    offset, page = 0, 5000
+    while True:
+        url = (f"{RESOURCE}?stateabbr={state_abbr}&measureid={measure}"
+               f"&$select=locationname,data_value,totalpopulation&$limit={page}&$offset={offset}")
+        rows = json.loads(urlopen(url, timeout=300).read())
+        for r in rows:
+            v, geoid = r.get("data_value"), r.get("locationname")
+            if v is None or not geoid:
+                continue
+            out[geoid] = {"fraction": float(v) / 100.0, "adult_pop": float(r.get("totalpopulation") or 0)}
+        if len(rows) < page:
+            return out
+        offset += page
