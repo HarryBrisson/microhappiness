@@ -65,9 +65,16 @@ modeled health prevalence at **tract and ZCTA** (our exact geography), including
 This lets us both fit on and locally distribute the strongest predictor ACS lacks — something a
 pure-ACS model cannot do. Caveats: PLACES is itself modeled (BRFSS→ACS), so this is
 **synthetic-on-synthetic** — compound and label the uncertainty; collapse GSS `HEALTH` to PLACES's
-"fair-or-poor" so the control total matches; and **never use PLACES *mental*-health / depression as a
-predictor** — those are nearly the happiness construct itself (circular) and are reserved as
-**validation** targets (§5).
+"fair-or-poor" so the control total matches.
+
+**Mental health is a distinct axis, not circular.** Wellbeing science separates *life-evaluation*
+(what GSS `HAPPY` measures) from *affect*, *eudaimonia*, and *illbeing* — one can carry a depression
+diagnosis and still evaluate life as "pretty happy." So PLACES `MHLTH` (poor-mental-health days) is a
+**legitimate predictor** (candidate **M5**), fit on GSS's individual `MNTLHLTH` item (asked only in
+some years → smaller fitting sample) and raked from the PLACES margin. We deliberately keep **M1–M4
+as variants that *exclude* mental health** — both as a cautious baseline and so `MHLTH` can serve as
+an *independent* validation target for them (§5). Depression has no clean GSS individual analog to fit
+on, so it stays validation-only.
 
 ## 2. Candidate models (compare, don't guess)
 
@@ -87,7 +94,9 @@ comprehensive ACS *data*, lean *model*.
   region random effects. The fullest defensible individual model.
 - **M4 — health-poststratified (PLACES-unlocked).** M3 **+ self-rated health**, fit on GSS `HEALTH`
   and raked in per-area from the PLACES `GHLTH` marginal (§1a). Expected to lift the ceiling most;
-  carries the synthetic-on-synthetic caveat.
+  carries the synthetic-on-synthetic caveat. Excludes mental health (the cautious health variant).
+- **M5 — health + mental-health.** M4 **+ mental-health-days** (GSS `MNTLHLTH` ↔ PLACES `MHLTH`). A
+  distinct illbeing/affect axis (§1a). The one variant that includes mental health; M1–M4 exclude it.
 
 **Nonlinearities:** age as a quadratic (U-shape); income as decile/log (diminishing returns).
 **Honesty:** report McFadden R², calibration, and bootstrap/Monte-Carlo CIs per area; never publish a

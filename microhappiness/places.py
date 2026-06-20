@@ -13,23 +13,27 @@ CAUTIONS (see METHODOLOGY.md):
 - Synthetic-on-synthetic: PLACES is itself modeled (BRFSS -> ACS MRP). Uncertainty compounds; label it.
 - Definitional alignment: collapse GSS HEALTH (excellent/good/fair/poor) to PLACES 'fair-or-poor'
   so the raking control total is consistent with the fitted predictor.
-- CIRCULARITY: do NOT use PLACES 'mental health not good' / depression as a PREDICTOR — they are
-  nearly the happiness construct itself. Those are VALIDATION targets only (validate.py).
+- NOT circular: PLACES 'mental health not good' is an illbeing/affect axis, conceptually DISTINCT from
+  HAPPY's global life-evaluation (wellbeing science separates life-evaluation, affect, eudaimonia,
+  illbeing). So MHLTH is a legitimate predictor (model M5) AND an independent validation target for
+  the models that EXCLUDE it (M1-M4). It just needs a GSS individual analog (MNTLHLTH) to fit on, which
+  exists only in some GSS years. Depression has no clean GSS individual analog -> validation only.
 
 Source: PLACES API (data.cdc.gov), tract + ZCTA releases.
 """
 
 from __future__ import annotations
 
-# Measures used as poststratification predictors (a strong, non-circular happiness correlate).
+# Measures usable as poststratification predictors (have a GSS individual analog to fit on).
 PREDICTOR_MEASURES = {
-    "GHLTH": "fair-or-poor self-rated general health (% adults)",  # the health poststrat margin
+    "GHLTH": "fair-or-poor self-rated general health (% adults)",   # <- GSS HEALTH; the health margin
+    "MHLTH": "mental health not good >=14 days (% adults)",         # <- GSS MNTLHLTH (subset of years); M5
 }
 
-# Measures reserved for VALIDATION only — too close to the happiness construct to use as predictors.
+# Measures used for VALIDATION (and as predictors only where a GSS analog exists, above).
 VALIDATION_MEASURES = {
-    "MHLTH": "mental health not good >=14 days (% adults)",
-    "DEPRESSION": "diagnosed depression (% adults)",
+    "MHLTH": "mental health not good >=14 days (% adults)",   # validates M1-M4 (which exclude it)
+    "DEPRESSION": "diagnosed depression (% adults)",          # no GSS analog -> validation only
 }
 
 GEOGRAPHIES = ("tract", "zcta")

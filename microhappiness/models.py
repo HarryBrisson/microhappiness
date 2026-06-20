@@ -103,4 +103,23 @@ M4_HEALTH = ModelSpec(
 # demographic margins; PLACES supplies the health margin. So GSS is both the fitted model and the seed.
 JOINT_SEED = "gss"  # alternative: "pums" (larger, but lacks HEALTH -> would need GSS for the health axis)
 
-CANDIDATES: dict[str, ModelSpec] = {m.key: m for m in (M0_CEILING, M1_MINIMAL, M2_PLACES, M3_RICH, M4_HEALTH)}
+M5_AFFECT = ModelSpec(
+    key="m5_affect",
+    label="Health + mental-health",
+    purpose="M4 + mental-health-days. A conceptually DISTINCT axis (illbeing/affect vs HAPPY's global "
+    "life-evaluation), so not circular — wellbeing science separates life-evaluation, affect, "
+    "eudaimonia, and illbeing. Fit on GSS MNTLHLTH, raked from the PLACES MHLTH margin.",
+    cell_predictors=("marital", "income", "employment", "education", "age", "sex", "race_ethnicity",
+                     "health", "mental_health"),
+    quadratic=("age",),
+    random_effects=("region",),
+    notes="GSS MNTLHLTH is asked only in some years -> its coefficient is fit on a GSS subset (smaller "
+    "N, fewer eras). M1-M4 EXCLUDE mental health (the cautious variants) and can be VALIDATED against "
+    "PLACES MHLTH as an independent check; M5 uses it so can't. Depression has no clean GSS individual "
+    "analog to fit on, so it stays a validation target, not a predictor.",
+)
+
+CANDIDATES: dict[str, ModelSpec] = {
+    m.key: m for m in (M0_CEILING, M1_MINIMAL, M2_PLACES, M3_RICH, M4_HEALTH, M5_AFFECT)
+}
+# M1-M4 exclude mental health by construction (the cautious set); M5 is the one that includes it.
