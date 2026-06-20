@@ -84,4 +84,23 @@ M3_RICH = ModelSpec(
     notes="Requires IPF/raking to synthesize the per-tract joint table (see poststratify.py).",
 )
 
-CANDIDATES: dict[str, ModelSpec] = {m.key: m for m in (M0_CEILING, M1_MINIMAL, M2_PLACES, M3_RICH)}
+M4_HEALTH = ModelSpec(
+    key="m4_health",
+    label="Health-poststratified (PLACES-unlocked)",
+    purpose="M3 + self-rated health — the strongest happiness predictor ACS lacks, made local via PLACES.",
+    # `health` is fit on GSS HEALTH (individual) and raked in per-area from the PLACES GHLTH marginal;
+    # the GSS/PUMS seed carries the demographics x health correlation. See places.py / poststratify.py.
+    cell_predictors=("marital", "income", "employment", "education", "age", "sex", "race_ethnicity", "health"),
+    quadratic=("age",),
+    random_effects=("region",),
+    notes="Expected to lift the variance ceiling most. Caveats: synthetic-on-synthetic (PLACES is "
+    "itself modeled); align GSS HEALTH to PLACES 'fair-or-poor'; never use PLACES mental-health as a "
+    "predictor (circular) — that's a validation target only.",
+)
+
+# The per-area joint table is raked from a national SEED = GSS (or PUMS) microdata, which already
+# carries happiness + all predictors INCLUDING health at the individual level. ACS supplies the
+# demographic margins; PLACES supplies the health margin. So GSS is both the fitted model and the seed.
+JOINT_SEED = "gss"  # alternative: "pums" (larger, but lacks HEALTH -> would need GSS for the health axis)
+
+CANDIDATES: dict[str, ModelSpec] = {m.key: m for m in (M0_CEILING, M1_MINIMAL, M2_PLACES, M3_RICH, M4_HEALTH)}

@@ -35,7 +35,7 @@ Robust GSS / wellbeing-literature predictors, split by whether ACS can supply th
 | **Race / ethnicity** | next-tier unconditional gap | ✅ | B03002 |
 | **Sex** | small | ✅ | B01001 |
 | Disability | negative | ✅ (proxy) | C18120 / B18101 |
-| Self-rated health | strong | ❌ | — |
+| **Self-rated health** | strong | ✅ **via PLACES** | CDC PLACES `GHLTH`, tract/ZCTA (see §1a) |
 | Religious attendance | positive | ❌ | — |
 | Social trust | ~18pt gap | ❌ | — |
 | Political ideology | conservatives ~9pt happier | ❌ | — |
@@ -48,6 +48,26 @@ ACS predictors reach for `HAPPY` **was not reliably established in the literatur
 attempts to pin a number were contradicted). So we **measure it ourselves first** — see
 `diagnostics/step0_variance_ceiling.py`. If McFadden's pseudo-R² is near-zero, we reframe the
 product (or stop) rather than ship false precision.
+
+### 1a. PLACES raises the ceiling — by supplying the health *marginal*
+
+The most valuable non-ACS predictor we can recover is **self-rated health**. CDC PLACES publishes
+modeled health prevalence at **tract and ZCTA** (our exact geography), including `GHLTH` =
+% fair-or-poor self-rated health. The clean way to use it is *not* as a generic feature but as a
+**poststratification marginal**:
+
+- GSS carries individual self-rated health (`HEALTH`), so we **fit** `HAPPY ~ … + health`.
+- PLACES gives each area's % fair-or-poor health, which we **rake into the per-area joint table** as
+  the health margin (ACS supplies the demographic margins). The national **seed** is GSS/PUMS
+  microdata, which already carries the demographics×health correlation — so no observed joint is
+  needed. **GSS is thus both the fitted model and the joint seed; ACS + PLACES are the margins.**
+
+This lets us both fit on and locally distribute the strongest predictor ACS lacks — something a
+pure-ACS model cannot do. Caveats: PLACES is itself modeled (BRFSS→ACS), so this is
+**synthetic-on-synthetic** — compound and label the uncertainty; collapse GSS `HEALTH` to PLACES's
+"fair-or-poor" so the control total matches; and **never use PLACES *mental*-health / depression as a
+predictor** — those are nearly the happiness construct itself (circular) and are reserved as
+**validation** targets (§5).
 
 ## 2. Candidate models (compare, don't guess)
 
@@ -65,10 +85,25 @@ comprehensive ACS *data*, lean *model*.
 - **M3 — disciplined-rich / full MRP.** `marital + income + employment + education + age + age² +
   sex + race/ethnicity` as individual effects with **raked** per-area joint poststrat tables +
   region random effects. The fullest defensible individual model.
+- **M4 — health-poststratified (PLACES-unlocked).** M3 **+ self-rated health**, fit on GSS `HEALTH`
+  and raked in per-area from the PLACES `GHLTH` marginal (§1a). Expected to lift the ceiling most;
+  carries the synthetic-on-synthetic caveat.
 
 **Nonlinearities:** age as a quadratic (U-shape); income as decile/log (diminishing returns).
 **Honesty:** report McFadden R², calibration, and bootstrap/Monte-Carlo CIs per area; never publish a
 point estimate without its interval.
+
+### 2a. Variable selection — broad screen, then a theory gate
+
+We don't trust the literature's predictor shortlist blindly. A **broad empirical screen**
+(`diagnostics/step1_screen.py`) runs over GSS's own wide variable set — the only place individual
+happiness and a candidate predictor sit together (ACS/PLACES have no fine geography to attach to a
+GSS respondent). It ranks candidates by **cross-validated incremental** signal (held-out split, era
+stability) so the breadth doesn't chase noise. A variable enters the **final** model only if it is
+simultaneously (a) empirically useful, (b) reproducible at tract/ZCTA via ACS or PLACES, and (c)
+backed by a **clear, logical mechanism** — a human call that keeps the model parsimonious and guards
+against spurious correlations. This re-ranks predictors against the data while still refusing the
+kitchen sink.
 
 ## 3. Temporal dimension (decades of GSS × ACS vintages)
 
@@ -91,10 +126,12 @@ ACS 5-yr "years" are overlapping windows — label them as such.
 
 1. **Fit** the chosen model on GSS microdata (with survey weights `WTSSALL`/`WTSSPS`).
 2. **Poststratification table per area.** PUMS microdata is only identified to PUMA, so the joint
-   demographic distribution per tract is **synthesized by iterative proportional fitting (raking)**:
-   PUMS as the disaggregate seed, ACS published marginals (the tables above) as multi-level controls.
-   (PopulationSim / RTI SynthPop are production prior art.) For M2 we skip full synthesis — use the
-   census joint cells age×sex×race×education directly + area covariates, PLACES-style.
+   distribution per tract is **synthesized by iterative proportional fitting (raking)**: a national
+   **seed** (GSS, or PUMS) carrying the predictor correlations, raked to each area's published
+   marginals — ACS for demographics + **PLACES for the health margin** (§1a). Using GSS as the seed
+   keeps `health` in the joint even though ACS/PUMS lack it. (PopulationSim / RTI SynthPop are
+   production prior art.) For M2 we skip full synthesis — use the census joint cells
+   age×sex×race×education directly + area covariates, PLACES-style.
 3. **Predict** each cell's happiness, multiply by the cell's ACS population, sum → area estimate.
 4. **Aggregate / allocate** tract estimates up to any geography (ward, community area, χGRID, county).
 5. **Uncertainty:** Monte-Carlo simulation over the fitted model (PLACES draws ~1,000 datasets);
@@ -119,6 +156,8 @@ ACS 5-yr "years" are overlapping windows — label them as such.
   B12001 (marital), B19001/B19013 (income), B23025 (employment), B01001 (age×sex), B15003
   (education), B03002 (race/ethnicity), C18120/B18101 (disability). Tract and ZCTA both available.
   Census joint cells for M2 come from the decennial / detailed ACS tables. Needs a Census API key.
+- **CDC PLACES:** the PLACES API (`data.cdc.gov`), measure `GHLTH` (fair-or-poor self-rated health) at
+  tract & ZCTA — the health poststrat margin (§1a). `MHLTH`/`DEPRESSION` pulled for validation only.
 
 ## Integration with Penlight (ward-wise)
 

@@ -47,14 +47,16 @@ python -m microhappiness.run --model m1_minimal --acs-year 2022 --geo tract
 ```
 microhappiness/
   models.py        candidate model specs (compare these)
-  gss.py           fetch + recode GSS microdata (HAPPY + predictors)
+  gss.py           fetch + recode GSS microdata (HAPPY + predictors; also the joint seed)
   acs.py           Census API: poststrat marginals + area covariates (tract/ZCTA)
-  poststratify.py  IPF / raking -> per-area joint demographic tables
+  places.py        CDC PLACES: self-rated-health margin (the predictor ACS can't supply)
+  poststratify.py  IPF / raking -> per-area joint tables (ACS + PLACES margins, GSS seed)
   estimate.py      fit model, predict cells, aggregate to areas + uncertainty
   validate.py      benchmark vs Sharecare/Gallup + CDC PLACES + GSS national trend
   publish.py       nationwide tract table + byop/v1 aggregation_spec.json
 diagnostics/
   step0_variance_ceiling.py   measure McFadden R² of ACS-only model (honesty gate)
+  step1_screen.py             broad GSS-wide predictor screen -> theory gate
 ```
 
 ## For collaborators (e.g. Columbus)
