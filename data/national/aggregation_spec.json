@@ -1,0 +1,51 @@
+{
+  "contract": "byop/v1",
+  "source": "microhappiness",
+  "synthetic_estimate": true,
+  "caveat": "Synthetic small-area estimates: the happiness EXPECTED given an area's circumstantial composition (income, marital/household status, employment, home ownership, health) \u2014 NOT an observed local measurement. Identity characteristics (age/sex/race) are excluded by policy.",
+  "acs_vintage": "2022",
+  "model": "m5",
+  "gss_years": "1972-2022",
+  "layers": {
+    "tract": {
+      "file": "happiness_tract.csv",
+      "kind": "polygon_values",
+      "id_field": "geoid"
+    },
+    "zcta": {
+      "file": "happiness_zcta.csv",
+      "kind": "polygon_values",
+      "id_field": "geoid"
+    }
+  },
+  "metrics": {
+    "modeled_happiness_index": {
+      "combine": "weighted_mean",
+      "value": "happiness_index",
+      "weight": "adult_pop",
+      "unit": "index_0_100",
+      "direction": "higher_better",
+      "synthetic": true,
+      "label": "Modeled happiness",
+      "category": "community_vitality",
+      "layer": [
+        "tract",
+        "zcta"
+      ]
+    },
+    "modeled_pct_very_happy": {
+      "combine": "weighted_mean",
+      "value": "pct_very_happy",
+      "weight": "adult_pop",
+      "unit": "percent",
+      "direction": "higher_better",
+      "synthetic": true,
+      "label": "Modeled % very happy",
+      "category": "community_vitality",
+      "layer": [
+        "tract",
+        "zcta"
+      ]
+    }
+  }
+}
