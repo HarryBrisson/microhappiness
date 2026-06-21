@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from microhappiness import calibrate
 from microhappiness.acs import fetch_acs_margins
 from microhappiness.binning import bin_gss
 from microhappiness.estimate import estimate_state, estimate_state_m5, fit_m5
@@ -75,15 +76,21 @@ def main() -> None:
             print(f"  [{i}/{len(fips)}] {STATES.get(st, st)}: {len(df)} {geo}s")
 
     full = pd.concat(parts, ignore_index=True)
+    # v2 calibration: additively benchmark the national pop-weighted level to the design-weighted GSS
+    # national rate (preserves the geographic pattern; fixes the absolute level M5's margins shifted).
+    target = calibrate.gss_national(gss)
+    offsets = calibrate.offsets(full, target)
+    full = calibrate.apply_offsets(full, offsets)
+
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / f"happiness_{geo}.csv"
     full.to_csv(out, index=False)
     write_spec(out_dir, [geo], vintage=str(args.acs_year), model_key=args.model,
-               gss_years="1972-2022")
-    s = full.sort_values("happiness_index")
+               gss_years="1972-2022", calibration=offsets)
     print(f"\nmodel {args.model} fit on N={meta['n_fit']} / {meta['n_cells']} cells; "
           f"{len(full)} {geo}s -> {out}")
+    print(f"calibrated offsets {offsets} (target {target})")
     print(f"happiness_index: median {full['happiness_index'].median():.1f}, "
           f"range {full['happiness_index'].min():.1f}–{full['happiness_index'].max():.1f}; "
           f"pct_very_happy median {full['pct_very_happy'].median():.1f}%")

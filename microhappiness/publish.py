@@ -33,22 +33,35 @@ METRICS = {
 }
 
 
-def write_spec(out_dir, geographies, *, vintage: str, model_key: str, gss_years: str):
-    """Write aggregation_spec.json next to the per-geography CSVs (happiness_<geo>.csv)."""
+CI_NOTE = {
+    "level": 0.90,
+    "scope": "model_coefficient",
+    "note": ("A 90% interval over the fitted GSS coefficients' sampling uncertainty only "
+             "(<metric>_lo/_hi columns). It EXCLUDES the PLACES-margin and structural/synthetic "
+             "uncertainty, which are larger — so treat it as a lower bound on total uncertainty."),
+}
+
+
+def write_spec(out_dir, geographies, *, vintage: str, model_key: str, gss_years: str, calibration=None):
+    """Write/merge aggregation_spec.json next to the per-geography CSVs (happiness_<geo>.csv).
+
+    Layers accumulate across calls (so running tract then zcta yields a spec with both). `calibration`
+    records the national benchmarking offsets applied to the published values."""
     out_dir = Path(out_dir)
-    spec = {
-        "contract": CONTRACT,
-        "source": SOURCE,
-        "synthetic_estimate": True,
-        "caveat": CAVEAT,
-        "acs_vintage": vintage,
-        "model": model_key,
-        "gss_years": gss_years,
-        "layers": {
-            geo: {"file": f"happiness_{geo}.csv", "kind": "polygon_values", "id_field": "geoid"}
-            for geo in geographies
-        },
-        "metrics": {mid: {**m, "layer": list(geographies)} for mid, m in METRICS.items()},
-    }
-    (out_dir / "aggregation_spec.json").write_text(json.dumps(spec, indent=2))
-    return out_dir / "aggregation_spec.json"
+    path = out_dir / "aggregation_spec.json"
+    spec = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    spec.update({
+        "contract": CONTRACT, "source": SOURCE, "synthetic_estimate": True, "caveat": CAVEAT,
+        "acs_vintage": vintage, "model": model_key, "gss_years": gss_years, "confidence_interval": CI_NOTE,
+    })
+    if calibration is not None:
+        spec["calibration"] = {"method": "national additive benchmark to design-weighted GSS rate",
+                               "offsets": calibration}
+    layers = spec.get("layers", {})
+    for geo in geographies:
+        layers[geo] = {"file": f"happiness_{geo}.csv", "kind": "polygon_values", "id_field": "geoid"}
+    spec["layers"] = layers
+    spec["metrics"] = {mid: {**m, "layer": list(layers), "ci": [f"{m['value']}_lo", f"{m['value']}_hi"]}
+                       for mid, m in METRICS.items()}
+    path.write_text(json.dumps(spec, indent=2))
+    return path

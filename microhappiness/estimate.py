@@ -86,22 +86,47 @@ M5_EXTRA = ("mental_health", "smoker")
 
 
 def fit_models_m5(gss_binned):
-    """Return the M4 fits + grafted {extra: (logit_coef, ols_coef)} + P(extra=1 | health)."""
+    """Return the M4 fits + grafted {extra: (logit_coef, ols_coef)} + their SEs + P(extra=1 | health)."""
     import statsmodels.formula.api as smf
 
     d = gss_binned.copy()
     d["very_happy"] = (d["happy"] == 3).astype(int)
     d["score"] = d["happy"].map({3: 100.0, 2: 50.0, 1: 0.0})
     logit, ols, n_fit = fit_models(gss_binned)
-    coef, cond = {}, {}
+    coef, bse, cond = {}, {}, {}
     for extra in M5_EXTRA:
         sub = d.dropna(subset=["very_happy", *PREDICTORS, extra])
         lg = smf.logit(f"very_happy ~ {_FORMULA_RHS} + {extra}", data=sub).fit(disp=0)
         ol = smf.ols(f"score ~ {_FORMULA_RHS} + {extra}", data=sub).fit()
         coef[extra] = (float(lg.params[extra]), float(ol.params[extra]))
+        bse[extra] = (float(lg.bse[extra]), float(ol.bse[extra]))
         cobs = d.dropna(subset=["health", extra])
         cond[extra] = {h: float(cobs.loc[cobs["health"] == h, extra].mean()) for h in (0.0, 1.0)}
-    return logit, ols, coef, cond, n_fit
+    return logit, ols, coef, cond, bse, n_fit
+
+
+def _draw_predictions(seed, logit, ols, coef, bse, n_draws, rng_seed):
+    """Monte-Carlo per-cell predictions over the fitted coefficient uncertainty (fixed seed cells).
+
+    Returns (preds_pct, preds_idx) each (n_cells × n_draws): the M4 design × drawn coefficients +
+    drawn graft terms. Raking weights don't depend on coefficients, so a tract's CI is just
+    w · preds-percentiles — cheap to evaluate per area."""
+    import numpy as np
+    import patsy
+
+    rng = np.random.default_rng(rng_seed)
+    X = np.asarray(patsy.build_design_matrices([logit.model.data.design_info], seed)[0])
+    bL = rng.multivariate_normal(logit.params.to_numpy(), logit.cov_params().to_numpy(), n_draws)
+    bO = rng.multivariate_normal(ols.params.to_numpy(), ols.cov_params().to_numpy(), n_draws)
+    mh, sm = seed["mental_health"].to_numpy(), seed["smoker"].to_numpy()
+    gmL = rng.normal(coef["mental_health"][0], bse["mental_health"][0], n_draws)
+    gsL = rng.normal(coef["smoker"][0], bse["smoker"][0], n_draws)
+    gmO = rng.normal(coef["mental_health"][1], bse["mental_health"][1], n_draws)
+    gsO = rng.normal(coef["smoker"][1], bse["smoker"][1], n_draws)
+    lin = X @ bL.T + np.outer(mh, gmL) + np.outer(sm, gsL)
+    preds_pct = 100.0 / (1.0 + np.exp(-lin))
+    preds_idx = X @ bO.T + np.outer(mh, gmO) + np.outer(sm, gsO)
+    return preds_pct, preds_idx
 
 
 def build_seed_m5(gss_binned, logit, ols, coef, cond):
@@ -125,18 +150,19 @@ def build_seed_m5(gss_binned, logit, ols, coef, cond):
     return pd.DataFrame(out)
 
 
-def fit_m5(gss_binned):
-    """Build the reusable M5 fit (seed masks + per-cell predictions) once, to share across states."""
-    logit, ols, coef, cond, n_fit = fit_models_m5(gss_binned)
+def fit_m5(gss_binned, *, n_draws=200, rng_seed=0):
+    """Build the reusable M5 fit (seed masks + per-cell predictions + CI draw matrices) once, to share."""
+    logit, ols, coef, cond, bse, n_fit = fit_models_m5(gss_binned)
     seed = build_seed_m5(gss_binned, logit, ols, coef, cond)
     masks = precompute_masks({p: seed[p].to_numpy() for p in (*PREDICTORS, *M5_EXTRA)})
+    preds_pct, preds_idx = _draw_predictions(seed, logit, ols, coef, bse, n_draws, rng_seed)
     return (masks, seed["_w"].to_numpy(), seed["index"].to_numpy(), seed["pct_very"].to_numpy(),
-            n_fit, len(seed), coef)
+            n_fit, len(seed), coef, preds_pct, preds_idx)
 
 
 def estimate_state_m5(gss_binned, acs_margins, places, *, fitted=None):
-    """M5 estimates. `places` = {'GHLTH':..., 'MHLTH':..., 'CSMOKING':...} of {geoid:{fraction,adult_pop}}."""
-    masks, w0, ix, pv, n_fit, n_cells, coef = fitted or fit_m5(gss_binned)
+    """M5 estimates + 90% CIs. `places` = {'GHLTH','MHLTH','CSMOKING'} of {geoid:{fraction,adult_pop}}."""
+    masks, w0, ix, pv, n_fit, n_cells, coef, preds_pct, preds_idx = fitted or fit_m5(gss_binned)
     rows = []
     for geoid, margin in acs_margins.items():
         gh, mh, sm = (places["GHLTH"].get(geoid), places["MHLTH"].get(geoid), places["CSMOKING"].get(geoid))
@@ -147,6 +173,12 @@ def estimate_state_m5(gss_binned, acs_margins, places, *, fitted=None):
         m["mental_health"] = {1.0: mh["fraction"], 0.0: 1 - mh["fraction"]}
         m["smoker"] = {1.0: sm["fraction"], 0.0: 1 - sm["fraction"]}
         w = rake(masks, w0, m)
-        rows.append({"geoid": geoid, "happiness_index": float(np.dot(w, ix)),
-                     "pct_very_happy": float(np.dot(w, pv)), "adult_pop": gh["adult_pop"]})
+        ilo, ihi = np.percentile(w @ preds_idx, [5, 95])   # 90% CI over coefficient uncertainty
+        plo, phi = np.percentile(w @ preds_pct, [5, 95])
+        rows.append({"geoid": geoid,
+                     "happiness_index": float(np.dot(w, ix)),
+                     "happiness_index_lo": round(float(ilo), 2), "happiness_index_hi": round(float(ihi), 2),
+                     "pct_very_happy": float(np.dot(w, pv)),
+                     "pct_very_happy_lo": round(float(plo), 2), "pct_very_happy_hi": round(float(phi), 2),
+                     "adult_pop": gh["adult_pop"]})
     return pd.DataFrame(rows), {"n_fit": n_fit, "n_cells": n_cells, "graft": coef}
