@@ -1,71 +1,100 @@
 # microhappiness 🙂
 
-Modeled small-area estimates of **subjective happiness** for the United States — a happiness number
-for every census tract / ZCTA (and, by aggregation, any ward, neighborhood, or county), built from
-the **GSS happiness question** poststratified onto **ACS** demographics.
+**A modeled happiness number for every neighborhood in America.** microhappiness estimates subjective
+happiness for every US census tract and ZIP — and, by aggregation, any ward, neighborhood, or county —
+by fitting the **GSS happiness question** on circumstantial demographics and poststratifying onto
+**ACS** + **CDC PLACES** data. It's the [CDC PLACES](https://www.cdc.gov/places/methodology/index.html)
+method (multilevel regression + poststratification) pointed at wellbeing instead of health.
 
-It's the [CDC PLACES](https://www.cdc.gov/places/methodology/index.html) method (multilevel
-regression + poststratification) pointed at wellbeing instead of health. National by construction, so
-the same published table works for any US city.
+![Modeled happiness by county](docs/happiness_map.png)
 
-> ⚠️ **Synthetic estimates, not measurements.** Each value is the happiness *expected* given an
-> area's demographic mix — not an observed local survey. Most of what actually drives happiness
-> (personality, health, social trust, faith) isn't in the ACS, so these estimates are smooth and
-> composition-driven by design. We measure that ceiling honestly before trusting any output
-> (`diagnostics/step0_variance_ceiling.py`). Read [METHODOLOGY.md](METHODOLOGY.md) first.
+> ⚠️ **Synthetic estimates, not measurements.** Each value is the happiness *expected* given an area's
+> changeable circumstances — **never its identity** (age, sex, and race are excluded by design). Most of
+> what drives happiness (personality, faith, social ties) isn't in the data, so these estimates are
+> smooth and composition-driven. We measure that ceiling honestly before trusting any output. Read
+> [METHODOLOGY.md](METHODOLOGY.md) and [METHODOLOGY_TODO.md](METHODOLOGY_TODO.md).
 
-## Status
+## What it produces
 
-Early scaffold. The design is fixed (see METHODOLOGY.md); implementation is staged behind a Step-0
-honesty gate.
+A nationwide table — **78,600 census tracts + 29,579 ZCTAs** — with, per area:
 
-## How it works (4 steps)
+| column | meaning |
+|---|---|
+| `happiness_index` | modeled happiness, 0–100 |
+| `pct_very_happy` | modeled share "very happy" |
+| `*_lo` / `*_hi` | 90% confidence interval (coefficient uncertainty; a lower bound) |
+| `adult_pop` | adult population (the aggregation weight) |
 
-1. **Fit** a small, transparent model of GSS `HAPPY` on ACS-derivable predictors (marital, income,
-   employment, education, age, race/ethnicity). Several [candidate specs](microhappiness/models.py)
-   — minimal → PLACES-analog → disciplined-rich — are compared, not guessed.
-2. **Poststratify** onto each area's ACS demographic distribution (synthesizing the per-tract joint
-   table by raking where needed).
-3. **Predict + aggregate** to a nationwide tract/ZCTA table, then up to any polygons.
-4. **Validate** against Sharecare/Gallup county wellbeing + CDC PLACES mental-health, and against the
-   GSS national trend over time.
+…plus a `byop/v1` `aggregation_spec.json` so any consumer can roll the per-area values up to its own
+polygons. This drives the **Modeled happiness** metric live in [Ward Wise Penlight](https://penlight.wardwise.org).
 
-Decades of GSS × yearly ACS make this a **tract × year panel**, not a snapshot — see the temporal
-section in METHODOLOGY.md.
+## How it works
 
-## Quickstart (planned)
+```
+GSS happiness  ──fit──►  model (circumstance + health, identity-free)
+                                    │ poststratify (rake the GSS seed
+ACS margins  ───────────────────────┤  onto each area's published margins)
+CDC PLACES health margin  ──────────┘
+                                    ▼
+              tract / ZCTA happiness  ──population-weighted──►  any polygons
+```
+
+1. **Fit** a small, transparent model of GSS `HAPPY` on **circumstantial** predictors only — income,
+   marital/household status, employment, home ownership, living-alone — plus a **health** margin from
+   CDC PLACES (the strongest predictor the ACS can't supply). Identity (age/sex/race) is excluded so the
+   estimate rewards changeable conditions, not who lives there. Candidate specs in
+   [`models.py`](microhappiness/models.py); the predictor screen is in `diagnostics/`.
+2. **Poststratify** by raking the national GSS joint onto each area's ACS + PLACES marginals.
+3. **Predict + aggregate** to the nationwide tract/ZCTA table, then population-weight up to any polygons.
+4. **Calibrate** the national level to the GSS rate, attach **confidence intervals**, and **validate**.
+
+## Validation
+
+- **National level — exact.** After calibration the population-weighted national rate matches the
+  design-weighted GSS rate (31.0% very-happy / index 58.9, gap 0.0).
+- **Geography — sensible.** Highest counties cluster in the Upper Midwest/Plains, lowest in the
+  South/Appalachia (the map above); within Chicago, affluent wards rank highest, the most disadvantaged
+  lowest.
+- **Convergent validity — r ≈ −0.28** against CDC PLACES diagnosed depression (deliberately *reserved*
+  from the model) across 78.6k tracts.
+- **National trend — the honest limit.** The pooled model tracks the slow compositional drift (r ≈ 0.36)
+  but, by design, misses *period* shocks like the 2021 COVID happiness crash — that's what the temporal
+  panel is for.
+
+![Modeled vs. actual GSS happiness over time](docs/national_trend.png)
+
+## Use it
+
+**Build the estimates** (needs a free [Census API key](https://api.census.gov/data/key_signup.html)
+and the [GSS cumulative datafile](https://gss.norc.org/get-the-data) at `data/gss_cumulative.dta`):
 
 ```bash
 pip install -e .
-export CENSUS_API_KEY=...                       # https://api.census.gov/data/key_signup.html
-python -m diagnostics.step0_variance_ceiling     # measure the ceiling FIRST (go/no-go)
-python -m microhappiness.run --model m1_minimal --acs-year 2022 --geo tract
+export CENSUS_API_KEY=...
+python -m diagnostics.step0_variance_ceiling                 # the honesty gate (measure the ceiling)
+python -m microhappiness.run --geography tract --out-dir data/national   # nationwide tracts
+python -m microhappiness.run --geography zcta  --out-dir data/national   # nationwide ZCTAs
+python -m diagnostics.make_visuals                           # regenerate the README visuals
 ```
+
+**Consume the published artifact** (no need to run the model). Read `data/national/happiness_<geo>.csv`
++ `aggregation_spec.json` and population-weight the values onto your polygons. A reference consumer
+(`polygon_values` / `weighted_mean`) lives in ward-wise-civic-tech's `pipelines/civic_data/byop.py`.
+
+## For collaborators (e.g. Columbus)
+
+Nothing here is Chicago-specific — the table is nationwide. Point it at your city's tract geometries and
+aggregate. Consume the **published artifact**, so you never import this repo's modeling stack.
 
 ## Layout
 
 ```
-microhappiness/
-  models.py        candidate model specs (compare these)
-  gss.py           fetch + recode GSS microdata (HAPPY + predictors; also the joint seed)
-  acs.py           Census API: poststrat marginals + area covariates (tract/ZCTA)
-  places.py        CDC PLACES: self-rated-health margin (the predictor ACS can't supply)
-  poststratify.py  IPF / raking -> per-area joint tables (ACS + PLACES margins, GSS seed)
-  estimate.py      fit model, predict cells, aggregate to areas + uncertainty
-  validate.py      benchmark vs Sharecare/Gallup + CDC PLACES + GSS national trend
-  publish.py       nationwide tract table + byop/v1 aggregation_spec.json
-diagnostics/
-  step0_variance_ceiling.py   measure McFadden R² of ACS-only model (honesty gate)
-  step1_screen.py             broad GSS-wide predictor screen -> theory gate
+microhappiness/   gss · acs · places · binning · poststratify · estimate · calibrate · validate · publish · run
+diagnostics/      step0_variance_ceiling · step1_screen · full_screen · make_visuals
 ```
-
-## For collaborators (e.g. Columbus)
-
-Nothing here is Chicago-specific. The published table is nationwide tracts — point it at your city's
-tract geometries and aggregate. Consumed as a pinned published artifact, so you don't import this
-repo's modeling stack.
 
 ## License / data
 
-Public. GSS data © NORC (cumulative datafile, public use). ACS via the Census API. Estimates are
-modeled; cite METHODOLOGY.md and the synthetic-estimate caveat in any downstream use.
+Public. GSS data © NORC (cumulative datafile, public use); ACS via the Census API; CDC PLACES public.
+Estimates are modeled — cite [METHODOLOGY.md](METHODOLOGY.md) and the synthetic-estimate caveat in any
+downstream use.

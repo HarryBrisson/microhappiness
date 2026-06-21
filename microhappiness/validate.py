@@ -20,8 +20,32 @@ from urllib.request import urlopen
 import numpy as np
 import pandas as pd
 
+from microhappiness.binning import PREDICTORS
+
 # CDC NCHS US Small-area Life Expectancy Estimates (USALEEP), tract life expectancy 2010-2015, public.
 USALEEP_RESOURCE = "https://data.cdc.gov/resource/5h56-n989.json"  # full_ct_num (tract GEOID) + le
+
+
+def national_trend(gss_binned, logit) -> tuple[pd.DataFrame, float]:
+    """Per-year modeled vs actual GSS very-happy rate — the longitudinal validation.
+
+    For each GSS year: actual = design-weighted very-happy %, modeled = mean predicted P(very) from the
+    fitted (pooled) model over that year's respondents. Correlation over years shows how much of the
+    national happiness TREND the model's circumstantial+health predictors reproduce; the residual is
+    period effect the pooled model can't see (until the temporal panel). Returns (per-year df, Pearson r).
+    """
+    d = gss_binned.dropna(subset=["happy", *PREDICTORS]).copy()
+    d["very_happy"] = (d["happy"] == 3).astype(float)
+    d["pred"] = logit.predict(d) * 100.0
+    d["_w"] = d["wtssps"].fillna(1.0) if "wtssps" in d else 1.0
+    rows = []
+    for year, g in d.groupby("year"):
+        w = g["_w"].to_numpy()
+        rows.append({"year": int(year), "n": int(len(g)),
+                     "actual": float(np.average(g["very_happy"], weights=w) * 100.0),
+                     "modeled": float(np.average(g["pred"], weights=w))})
+    df = pd.DataFrame(rows).sort_values("year").reset_index(drop=True)
+    return df, round(float(df["actual"].corr(df["modeled"])), 3)
 
 
 def national_level(modeled: pd.DataFrame, gss_target: dict) -> dict:
