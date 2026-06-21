@@ -31,6 +31,10 @@
       "layer": [
         "tract",
         "zcta"
+      ],
+      "ci": [
+        "happiness_index_lo",
+        "happiness_index_hi"
       ]
     },
     "modeled_pct_very_happy": {
@@ -45,7 +49,23 @@
       "layer": [
         "tract",
         "zcta"
+      ],
+      "ci": [
+        "pct_very_happy_lo",
+        "pct_very_happy_hi"
       ]
+    }
+  },
+  "confidence_interval": {
+    "level": 0.9,
+    "scope": "model_coefficient",
+    "note": "A 90% interval over the fitted GSS coefficients' sampling uncertainty only (<metric>_lo/_hi columns). It EXCLUDES the PLACES-margin and structural/synthetic uncertainty, which are larger \u2014 so treat it as a lower bound on total uncertainty."
+  },
+  "calibration": {
+    "method": "national additive benchmark to design-weighted GSS rate",
+    "offsets": {
+      "happiness_index": 3.21,
+      "pct_very_happy": 4.479
     }
   }
 }

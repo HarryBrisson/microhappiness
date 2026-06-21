@@ -68,9 +68,18 @@ for tractability, and where a v2 could do better. Grouped by priority.
     v1 cells; revisit if a refined education spec earns its place. Employment is 3-level
     (employed/unemployed/nilf) with armed forces folded into employed — fine, but documented.
 
-12. **External validation not yet run.** Validate county aggregates vs the Sharecare/Gallup
-    Community Well-Being Index and the modeled national trend vs the actual GSS national `HAPPY` trend
-    by year (the two independent axes). Synthetic estimates need this before strong claims.
+12. **Validation — partial.** DONE: national level lands exactly on the GSS rate post-calibration
+    (31.0% / index 58.9); convergent validity vs CDC PLACES diagnosed depression (reserved from the
+    model) is r≈−0.28 across 78.6k tracts (right direction, modest, as expected). STILL PENDING (gold
+    standard): (a) modeled national trend vs the actual GSS `HAPPY` trend by year — needs the temporal
+    panel; (b) county aggregates vs the Sharecare/Gallup Community Well-Being Index — needs that licensed
+    data; (c) tract life expectancy (USALEEP) — the public SODA copy (5h56-n989) lacks a clean tract
+    GEOID (tract number + state/county NAMES only), so it needs the original flat file or a name→FIPS map.
+
+14. **CI scope is partial.** The published 90% CI captures fitted-coefficient sampling uncertainty only
+    (~1.5 pt median — tight). It EXCLUDES the PLACES-margin (synthetic-on-synthetic) and structural
+    uncertainty, which are larger. Widening to total uncertainty means re-raking per Monte-Carlo draw
+    (expensive at 78k tracts) or an analytic margin-sensitivity term — a v2.5 refinement.
 
 13. **GSS weights across years.** We use `wtssps` (falling back to `wtssall`); confirm the weight
     choice is consistent across the pooled decades and post-2018 redesign.
