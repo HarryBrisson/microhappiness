@@ -58,11 +58,12 @@ CDC PLACES health margin  ──────────┘
   lowest.
 - **Convergent validity — r ≈ −0.28** against CDC PLACES diagnosed depression (deliberately *reserved*
   from the model) across 78.6k tracts.
-- **National trend — the honest limit.** A *cross-sectional* model tracks geography, not time. The
-  apparent r ≈ 0.36 over the years is inflated by the 2021/2024 GSS **web-mode change** (a survey
-  artifact, not a real crash); the genuine year-to-year correlation is weak (**r ≈ 0.11**). Chasing the
-  trend with more predictors would overfit the artifact — the temporal trend needs the **panel**
-  (era-specific coefficients), not more variables.
+- **National trend — and why there's no temporal forecast.** A *cross-sectional* model tracks geography,
+  not time (real year-to-year **r ≈ 0.11**; the apparent 0.36 is inflated by the 2021/2024 GSS web-mode
+  artifact). We tried a period model — it fits in-sample (r ≈ 0.81) but **overfits**: leave-one-year-out
+  collapses to r ≈ 0.20. National happiness *mood* is idiosyncratic period shock, not a forecastable
+  trend, so the honest product is the **spatial** estimate. (Details + chart in
+  [METHODOLOGY_TODO.md](METHODOLOGY_TODO.md).)
 
 ![Modeled vs. actual GSS happiness over time](docs/national_trend.png)
 

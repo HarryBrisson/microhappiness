@@ -68,14 +68,20 @@ for tractability, and where a v2 could do better. Grouped by priority.
    the estimate is "happiness given circumstance," and circumstance is itself unequally distributed.
    Keep this framing explicit in any public writeup.
 
-10. **Temporal panel not built.** v1 uses a single ACS vintage (2022) with coefficients pooled over
-    1972–2022. The planned tract×year panel (era-appropriate coefficients × matching ACS vintage,
-    period effects, the 2021 GSS mode-break handling, the 2010↔2020 tract crosswalk) is future work.
-    NOTE from the trend check: the cross-sectional model's year-to-year correlation is genuinely weak
-    (r≈0.11 excluding the 2021/2024 web-mode waves; the 0.36 "all years" figure is inflated by that
-    artifact). The 2021 happiness "collapse" is mostly the GSS push-to-web mode change, and `mntlhlth`
-    isn't even collected in 2021/2024 — so the trend can't (and shouldn't) be chased with predictors;
-    it needs the panel. Unemployment did spike in 2021 (observed) but explains ~1 of the ~12 apparent pts.
+10. **Temporal panel — investigated, and a PREDICTIVE one is not supported by the data.** v1 uses a
+    single ACS vintage (2022), coefficients pooled over 1972–2022. We tried a period model
+    (`temporal.py`: composition + health + a smooth spline over year + a web-mode flag). It fits the
+    national trend beautifully in-sample (**r≈0.81**) but **overfits** — leave-one-year-out collapses to
+    **r≈0.20** (and −0.22 on in-person years); held out, 2021 predicts 27% vs the actual 20%. National
+    happiness *mood* is idiosyncratic period shock, **not a smooth/forecastable trend** (chart:
+    `docs/temporal_overfit.png`). The 2021 "collapse" is mostly the GSS push-to-web mode change
+    (`mntlhlth` isn't even collected in 2021/2024; unemployment spiked but explains ~1 of ~12 pts).
+    CONCLUSION: the cross-sectional product is the right one (geography is stable + predictable). A
+    temporal panel can still be built as per-year *observed* snapshots — compositional tract estimates +
+    each year's GSS national level via calibration (NOT a forecast) — but its national trend would be
+    observed-not-modeled, and the compositional movement is small, so the temporal signal lives mainly in
+    specific areas with large demographic change. Needs per-year ACS + a 2010↔2020 tract crosswalk; build
+    only if a concrete use (e.g. tracking gentrifying tracts) calls for it.
 
 11. **Education dropped; employment recode.** Education was screened out as weak (~0) and isn't in the
     v1 cells; revisit if a refined education spec earns its place. Employment is 3-level
