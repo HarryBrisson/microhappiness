@@ -53,6 +53,48 @@ def per_year_rates(gss_binned, logit) -> pd.DataFrame:
     return pd.DataFrame(rows).sort_values("year").reset_index(drop=True)
 
 
+# ----- Per-year COMPOSITIONAL panel ---------------------------------------------------------------
+# A panel must avoid two traps: PLACES health doesn't exist pre-2020, and ACS income is binned in NOMINAL
+# dollars (inflation alone would fake a rising-happiness trend). So the compositional panel uses only the
+# inflation-immune demographic shares whose composition genuinely shifts over a decade. The result is the
+# part of the temporal story we CAN model honestly — how an area's demographics moved its happiness —
+# distinct from the national mood (unforecastable, see above) and the survey-mode artifact.
+CIRC = ("married", "employment", "home_owner", "lives_alone")
+CIRC_RHS = "married + C(employment) + home_owner + lives_alone"
+
+
+def fit_circumstantial(gss_binned):
+    """Fit the inflation-immune compositional model + seed (shared across all panel years)."""
+    import statsmodels.formula.api as smf
+
+    from microhappiness.poststratify import precompute_masks
+
+    d = gss_binned.dropna(subset=["happy", *CIRC]).copy()
+    d["very_happy"] = (d["happy"] == 3).astype(int)
+    d["score"] = d["happy"].map({3: 100.0, 2: 50.0, 1: 0.0})
+    logit = smf.logit(f"very_happy ~ {CIRC_RHS}", data=d).fit(disp=0)
+    ols = smf.ols(f"score ~ {CIRC_RHS}", data=d).fit()
+    d["_w"] = d["wtssps"].fillna(1.0) if "wtssps" in d else 1.0
+    seed = d.groupby(list(CIRC), as_index=False)["_w"].sum()
+    seed["_w"] /= seed["_w"].sum()
+    seed["pct_very"] = logit.predict(seed) * 100
+    seed["index"] = ols.predict(seed)
+    masks = precompute_masks({p: seed[p].to_numpy() for p in CIRC})
+    return masks, seed["_w"].to_numpy(), seed["index"].to_numpy(), seed["pct_very"].to_numpy()
+
+
+def estimate_year(acs_margins, fitted) -> dict:
+    """{geoid: compositional happiness_index} for one ACS vintage (rake only the CIRC margins)."""
+    from microhappiness.poststratify import rake
+
+    masks, w0, ix, _pv = fitted
+    out = {}
+    for geoid, margin in acs_margins.items():
+        w = rake(masks, w0, {k: margin[k] for k in CIRC})
+        out[geoid] = float(np.dot(w, ix))
+    return out
+
+
 def leave_one_year_out(gss_binned, *, df: int = 4) -> pd.DataFrame:
     """Refit excluding each year, predict that year's national rate out-of-sample (generalization test)."""
     import statsmodels.formula.api as smf

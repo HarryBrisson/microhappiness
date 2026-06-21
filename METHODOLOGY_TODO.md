@@ -80,8 +80,17 @@ for tractability, and where a v2 could do better. Grouped by priority.
     temporal panel can still be built as per-year *observed* snapshots — compositional tract estimates +
     each year's GSS national level via calibration (NOT a forecast) — but its national trend would be
     observed-not-modeled, and the compositional movement is small, so the temporal signal lives mainly in
-    specific areas with large demographic change. Needs per-year ACS + a 2010↔2020 tract crosswalk; build
-    only if a concrete use (e.g. tracking gentrifying tracts) calls for it.
+    specific areas with large demographic change. **COMPOSITIONAL PANEL BUILT (2026-06-20):** per-year ACS
+    (acs.py `year`), the 2010↔2020 tract crosswalk (`crosswalk.py`, area-weighted via the Census
+    relationship file), and `temporal.fit_circumstantial`/`estimate_year` — an inflation-immune model on
+    marriage/employment/ownership/household (drops nominal-dollar income, which inflation would fake, and
+    pre-2020-absent health). `diagnostics/build_panel.py` demos IL 2013→2022 on consistent 2020 tracts:
+    national drift **+0.15 pts** (composition ~flat, as predicted), but specific tracts move **±5–7**
+    (gentrification/decline) → `docs/panel_chicago_change.png`. This is the honest compositional signal;
+    it deliberately carries NO national mood (unforecastable). To add the observed national level per
+    year, calibrate each vintage to that year's GSS rate — with the web-mode caveat for 2021/2024.
+    REMAINING: per-year national run (heavy — N ACS vintages × 51 states) + population-weighted (not area)
+    crosswalk + within-year income percentiles if income is wanted back in.
 
 11. **Education dropped; employment recode.** Education was screened out as weak (~0) and isn't in the
     v1 cells; revisit if a refined education spec earns its place. Employment is 3-level
