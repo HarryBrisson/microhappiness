@@ -53,6 +53,14 @@ for tractability, and where a v2 could do better. Grouped by priority.
 
 ## Lower priority (scope + provenance)
 
+0. **PLACES release coverage gap (KY + PA).** The current CDC PLACES tract release (2025, `cwsq-ngmh`,
+   2020 tracts) silently OMITS Kentucky and Pennsylvania — they blanked on the national map. We backfill
+   those two states from the 2023 release (`em5e-5hvn`), which uses **2010** tracts, so a fraction of
+   their 2020 ACS tracts won't find a health margin and drop out (KY/PA run at lower coverage + a
+   slightly older health vintage than the other 48 states). Revisit when CDC restores KY/PA to the
+   current release, or add a 2010↔2020 tract crosswalk for the backfill.
+
+
 9. **Identity-exclusion confound (intentional, document the interpretation).** Age/sex/race are
    excluded as predictors by policy. Their correlation with happiness still flows through the
    *circumstantial* mediators (income, health, marital, employment, ownership) that remain. This is
@@ -63,6 +71,11 @@ for tractability, and where a v2 could do better. Grouped by priority.
 10. **Temporal panel not built.** v1 uses a single ACS vintage (2022) with coefficients pooled over
     1972–2022. The planned tract×year panel (era-appropriate coefficients × matching ACS vintage,
     period effects, the 2021 GSS mode-break handling, the 2010↔2020 tract crosswalk) is future work.
+    NOTE from the trend check: the cross-sectional model's year-to-year correlation is genuinely weak
+    (r≈0.11 excluding the 2021/2024 web-mode waves; the 0.36 "all years" figure is inflated by that
+    artifact). The 2021 happiness "collapse" is mostly the GSS push-to-web mode change, and `mntlhlth`
+    isn't even collected in 2021/2024 — so the trend can't (and shouldn't) be chased with predictors;
+    it needs the panel. Unemployment did spike in 2021 (observed) but explains ~1 of the ~12 apparent pts.
 
 11. **Education dropped; employment recode.** Education was screened out as weak (~0) and isn't in the
     v1 cells; revisit if a refined education spec earns its place. Employment is 3-level

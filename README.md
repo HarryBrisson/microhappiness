@@ -9,8 +9,9 @@ method (multilevel regression + poststratification) pointed at wellbeing instead
 ![Modeled happiness by county](docs/happiness_map.png)
 
 > ⚠️ **Synthetic estimates, not measurements.** Each value is the happiness *expected* given an area's
-> changeable circumstances — **never its identity** (age, sex, and race are excluded by design). Most of
-> what drives happiness (personality, faith, social ties) isn't in the data, so these estimates are
+> **circumstantial ACS and PLACES variables** — income, marital/household status, employment, home
+> ownership, and health — with immutable identity variables (age, sex, race) deliberately excluded. Most
+> of what drives happiness (personality, faith, social ties) isn't in the data, so these estimates are
 > smooth and composition-driven. We measure that ceiling honestly before trusting any output. Read
 > [METHODOLOGY.md](METHODOLOGY.md) and [METHODOLOGY_TODO.md](METHODOLOGY_TODO.md).
 
@@ -57,9 +58,11 @@ CDC PLACES health margin  ──────────┘
   lowest.
 - **Convergent validity — r ≈ −0.28** against CDC PLACES diagnosed depression (deliberately *reserved*
   from the model) across 78.6k tracts.
-- **National trend — the honest limit.** The pooled model tracks the slow compositional drift (r ≈ 0.36)
-  but, by design, misses *period* shocks like the 2021 COVID happiness crash — that's what the temporal
-  panel is for.
+- **National trend — the honest limit.** A *cross-sectional* model tracks geography, not time. The
+  apparent r ≈ 0.36 over the years is inflated by the 2021/2024 GSS **web-mode change** (a survey
+  artifact, not a real crash); the genuine year-to-year correlation is weak (**r ≈ 0.11**). Chasing the
+  trend with more predictors would overfit the artifact — the temporal trend needs the **panel**
+  (era-specific coefficients), not more variables.
 
 ![Modeled vs. actual GSS happiness over time](docs/national_trend.png)
 
