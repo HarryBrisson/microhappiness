@@ -12,10 +12,16 @@ per-outcome capabilities:
     * standardized (fear): identity is in the FIT (clean coefficients) but predictions hold the
       identity mix at the NATIONAL average — adjusts for response composition (women/older adults
       report more fear) without mapping it. Direct standardization, as in age-adjusted disease rates.
-- density (fear, socializing): a linear log10-density term, fit on belt-anchored respondent density
-  (public GSS reveals only SRCBELT — see density.py) and projected on each tract's ACTUAL density.
-  This is what lets the estimate vary within a city, where every tract shares one belt. Validated:
-  linear log-density recovers ~90-99% of the categorical belt fit.
+- area covariates (ecological bridges — fit on coarse respondent attachments, projected on each
+  area's own value):
+    * logdens (fear, socializing): linear log10-density, belt-anchored on the fit side (public GSS
+      reveals only SRCBELT — see density.py), each tract's actual density on the predict side. This
+      is what lets the estimate vary within a city, where every tract shares one belt. Validated:
+      linear log-density recovers ~90-99% of the categorical belt fit.
+    * logcong (attendance): CBP religious organizations per 1,000 adults (cbp.py), attached to
+      respondents at region x belt cell means — the SUPPLY side of the behavior, and the route by
+      which denominational geography (e.g. Utah) enters, which composition cannot see. Gate:
+      R2 0.056 -> 0.060, holdout region x belt +0.59 -> +0.80, region x era +0.70 -> +0.87.
 
 GATE (diagnostics/step0_outcomes_ceiling.py): pseudo-R2 above the 0.02 kill line AND holdout
 predictions that ORDER GSS geography (region / region x era / region x belt cells) — pseudo-R2 alone
@@ -58,36 +64,51 @@ class OutcomeSpec:
     identity: bool          # age4/sex/race_ethnicity in the fit
     top: object             # series -> boolean top-box
     standardize_identity: bool = False  # predict at the NATIONAL identity mix (fear)
-    density: bool = False               # + linear log-density (belt-anchored fit, tract projection)
+    # Ecological area covariates, fit on coarse respondent attachments and projected on each area's
+    # own value: "logdens" (density.py belt anchors) and/or "logcong" (cbp.py congregations per 1k
+    # adults, region x belt cell means). The fit zeroes the covariate design column, so the intercept
+    # carries the covariate=0 baseline and the per-area offset is coef x the area's own value.
+    area_covariates: tuple[str, ...] = ()
     index_column: str | None = None     # optional 0-100 index column (attendance only)
     index: object = None                # series -> 0-100 score
 
 
 OUTCOMES: tuple[OutcomeSpec, ...] = (
     OutcomeSpec("attendance", "attend", "weekly_attendance_pct", "attends nearly weekly or more",
-                identity=True, top=lambda s: s >= 6,
+                identity=True, top=lambda s: s >= 6, area_covariates=("logcong",),
                 index_column="attendance_index", index=lambda s: s / 8.0 * 100.0),
     OutcomeSpec("no_religion", "relig", "no_religion_pct", "no religious affiliation",
                 identity=True, top=lambda s: s == 4),
+    OutcomeSpec("god_certain", "god", "god_certain_pct", "knows God exists, no doubts",
+                identity=True, top=lambda s: s == 6),
+    OutcomeSpec("strong_affiliation", "reliten", "strong_affiliation_pct",
+                "strong religious affiliation", identity=True, top=lambda s: s == 1),
     OutcomeSpec("fear_walking", "fear", "fear_walking_pct",
                 "afraid to walk alone at night nearby", identity=True, standardize_identity=True,
-                density=True, top=lambda s: s == 1),
+                area_covariates=("logdens",), top=lambda s: s == 1),
     OutcomeSpec("financial_satisfaction", "satfin", "financial_satisfaction_pct",
                 "satisfied with present finances", identity=False, top=lambda s: s == 1),
     OutcomeSpec("social_trust", "trust", "social_trust_pct", "most people can be trusted",
                 identity=False, top=lambda s: s == 1),
     OutcomeSpec("weekly_friends", "socfrend", "weekly_friends_pct",
-                "spends an evening with friends weekly or more", identity=False, density=True,
+                "spends an evening with friends weekly or more", identity=False, area_covariates=("logdens",),
                 top=lambda s: s <= 2),
     OutcomeSpec("weekly_neighbors", "socommun", "weekly_neighbors_pct",
-                "spends an evening with neighbors weekly or more", identity=False, density=True,
+                "spends an evening with neighbors weekly or more", identity=False, area_covariates=("logdens",),
                 top=lambda s: s <= 2),
     OutcomeSpec("weekly_bar", "socbar", "weekly_bar_pct", "goes to a bar/tavern weekly or more",
-                identity=False, density=True, top=lambda s: s <= 2),
+                identity=False, area_covariates=("logdens",), top=lambda s: s <= 2),
+    OutcomeSpec("life_exciting", "life", "life_exciting_pct", "finds life exciting",
+                identity=False, top=lambda s: s == 1),
 )
 
 # Evaluated and REJECTED (kept so the diagnostics can re-measure): PRAY's ceiling sits at the
 # near-zero kill line and its holdout ordering is weak. Do not add to OUTCOMES without new evidence.
+# Also rejected, screened 2026-07 with subpop-conditioned fits (not re-measurable by the generic
+# step-0, so recorded here): HAPMAR very-happy-marriage among married adults (R2 0.015 — below the
+# 0.02 kill line; marriage quality isn't circumstantially structured) and SATJOB very-satisfied
+# among workers (R2 0.015 AND region ordering -0.98/-0.74 — satisfied workers are where the
+# composition least predicts them; both blades fail).
 REJECTED: tuple[OutcomeSpec, ...] = (
     OutcomeSpec("daily_prayer", "pray", "daily_prayer_pct", "prays daily or more",
                 identity=False, top=lambda s: s <= 2),
@@ -116,25 +137,26 @@ def build_seed(gss_binned, dims) -> pd.DataFrame:
     return seed
 
 
-def fit_outcome(gss_binned, spec, seed, anchors, *, rng_seed=0):
+def fit_outcome(gss_binned, spec, seed, respondent_covs, *, rng_seed=0):
     """Fit one outcome, predict LINEAR predictors on the seed cells.
 
-    Returns {column: {"link", "lin" (C,), "lin_draws" (C,D), "dens" scalar, "dens_draws" (D,)}}.
-    Density outcomes fit `+ logdens` on belt-anchored respondent density; `dens` is the coefficient
-    the per-area projection applies to (tract logdens - national reference). Non-density outcomes
-    carry dens=0, making the per-area math uniform."""
+    Returns {column: {"link", "lin" (C,), "lin_draws" (C,D), "covs": {name: (coef, draws)}}}.
+    `respondent_covs` maps each covariate name to a callable(frame) -> respondent values (the
+    ecological attachment: logdens from belt anchors, logcong from region x belt cell means)."""
     import patsy
     import statsmodels.formula.api as smf
 
     dims = bundle_dims(spec.identity)
     rhs = IDENTITY_RHS if spec.identity else _FORMULA_RHS
-    need = [spec.gss_col, *dims] + (["srcbelt"] if spec.density else [])
+    need = [spec.gss_col, *dims] + (["srcbelt"] if spec.area_covariates else [])
     d = gss_binned.dropna(subset=need).copy()
-    if spec.density:
-        rhs = rhs + " + logdens"
-        d["logdens"] = d["srcbelt"].map(anchors)
+    for name in spec.area_covariates:
+        rhs = rhs + f" + {name}"
+        d[name] = respondent_covs[name](d)
+        d = d.dropna(subset=[name])
     seed = seed.copy()
-    seed["logdens"] = 0.0  # placeholder column so the design matrix builds; offset added per area
+    for name in spec.area_covariates:
+        seed[name] = 0.0  # placeholder column so the design matrix builds; offset added per area
     rng = np.random.default_rng(rng_seed)
     out, n_fit = {}, len(d)
 
@@ -147,14 +169,12 @@ def fit_outcome(gss_binned, spec, seed, anchors, *, rng_seed=0):
         X = np.asarray(patsy.build_design_matrices([model.model.data.design_info], seed)[0])
         b = rng.multivariate_normal(params.to_numpy(), cov.to_numpy(), N_DRAWS)
         names = list(params.index)
-        if spec.density:
-            j = names.index("logdens")
-            dens, dens_draws = float(params.iloc[j]), b[:, j].copy()
-            X[:, j] = 0.0  # logdens contribution enters via the per-area offset instead
-        else:
-            dens, dens_draws = 0.0, np.zeros(N_DRAWS)
-        return {"link": link, "lin": X @ params.to_numpy(), "lin_draws": X @ b.T,
-                "dens": dens, "dens_draws": dens_draws}
+        covs = {}
+        for name in spec.area_covariates:
+            j = names.index(name)
+            covs[name] = (float(params.iloc[j]), b[:, j].copy())
+            X[:, j] = 0.0  # the covariate contribution enters via the per-area offset instead
+        return {"link": link, "lin": X @ params.to_numpy(), "lin_draws": X @ b.T, "covs": covs}
 
     d["_top"] = spec.top(d[spec.gss_col]).astype(int)
     out[spec.column] = _fit("_top", "logit")
@@ -179,27 +199,33 @@ def _national_identity_margins(areas) -> dict:
     return out
 
 
-def _area_values(W, fit, delta):
-    """(values, lo, hi) per area for one column: value = W · link(lin + dens*delta) per area."""
+def _area_values(W, fit, deltas):
+    """(values, lo, hi) per area for one column: value = W · link(lin + Σ coef·delta) per area.
+
+    `deltas` maps covariate name -> per-area value vector; the fitted intercept carries the
+    covariate=0 baseline (design columns zeroed in fit_outcome), so offsets use raw area values."""
     link = (lambda x: 100.0 / (1.0 + np.exp(-x))) if fit["link"] == "logit" else (lambda x: x)
-    lin, draws = fit["lin"], fit["lin_draws"]
-    if fit["dens"] == 0.0 and not np.any(fit["dens_draws"]):
+    lin, draws, covs = fit["lin"], fit["lin_draws"], fit["covs"]
+    if not covs:
         vals = W @ link(lin)
         lo, hi = np.percentile(W @ link(draws), [5, 95], axis=1)
         return vals, lo, hi
-    vals = np.einsum("tc,tc->t", W, link(lin[None, :] + fit["dens"] * delta[:, None]))
+    offset = sum(coef * deltas[name] for name, (coef, _d) in covs.items())
+    vals = np.einsum("tc,tc->t", W, link(lin[None, :] + offset[:, None]))
     per_draw = np.empty((W.shape[0], draws.shape[1]))
     for k in range(draws.shape[1]):  # loop draws: (T,C) at a time keeps memory bounded
-        per_draw[:, k] = np.einsum(
-            "tc,tc->t", W, link(draws[:, k][None, :] + fit["dens_draws"][k] * delta[:, None]))
+        off_k = sum(dd[k] * deltas[name] for name, (_c, dd) in covs.items())
+        per_draw[:, k] = np.einsum("tc,tc->t", W, link(draws[:, k][None, :] + off_k[:, None]))
     lo, hi = np.percentile(per_draw, [5, 95], axis=1)
     return vals, lo, hi
 
 
-def estimate(gss_binned, acs_margins, places_health, log_dens, anchors,
+def estimate(gss_binned, acs_margins, places_health, area_covs, respondent_covs,
              *, chunk=2000, log=lambda s: None):
-    """Estimate every outcome for every area with full margins + density. -> (DataFrame, meta).
+    """Estimate every outcome for every area with full margins + covariates. -> (DataFrame, meta).
 
+    `area_covs`: {covariate name: {geoid: value}} (each area's own projection values);
+    `respondent_covs`: {covariate name: callable(frame) -> values} (the fit-side attachment).
     Rake configurations (weights shared within each):
       identity-composition (religion): identity margins at TRACT values
       identity-standardized (fear):    identity margins at NATIONAL values
@@ -211,16 +237,19 @@ def estimate(gss_binned, acs_margins, places_health, log_dens, anchors,
 
     need_identity = set(IDENTITY_PREDICTORS)
     areas = [(g, m, places_health[g]) for g, m in acs_margins.items()
-             if g in places_health and need_identity.issubset(m) and g in log_dens]
+             if g in places_health and need_identity.issubset(m)
+             and all(g in vals for vals in area_covs.values())]
     natl_identity = _national_identity_margins(areas)
 
     seeds = {ident: build_seed(gss_binned, bundle_dims(ident)) for ident in (True, False)}
     fits, n_fit = {}, {}
     for (ident, std), specs in groups.items():
         for spec in specs:
+            covs = "+".join(spec.area_covariates)
             log(f"fitting {spec.key} ({'identity' if ident else 'circumstantial'}"
-                f"{', standardized' if std else ''}{', density' if spec.density else ''}) …")
-            fits[spec.key], n_fit[spec.key] = fit_outcome(gss_binned, spec, seeds[ident], anchors)
+                f"{', standardized' if std else ''}{', ' + covs if covs else ''}) …")
+            fits[spec.key], n_fit[spec.key] = fit_outcome(gss_binned, spec, seeds[ident],
+                                                          respondent_covs)
 
     rows = {geoid: {"geoid": geoid, "adult_pop": gh["adult_pop"]} for geoid, _m, gh in areas}
     for (ident, std), specs in groups.items():
@@ -240,12 +269,11 @@ def estimate(gss_binned, acs_margins, places_health, log_dens, anchors,
                         mm[p] = src[p]
                 margin_list.append(mm)
             W = rake_many(masks, w0, margin_list, chunk=chunk)
-            # The fitted intercept already carries the logdens=0 baseline (the design column is
-            # zeroed in fit_outcome), so the per-area offset is dens_coef x the area's OWN logdens.
-            delta = np.array([log_dens[g] for g, _m, _gh in part])
+            deltas = {name: np.array([vals[g] for g, _m, _gh in part])
+                      for name, vals in area_covs.items()}
             for spec in specs:
                 for col, fit in fits[spec.key].items():
-                    vals, lo, hi = _area_values(W, fit, delta)
+                    vals, lo, hi = _area_values(W, fit, deltas)
                     for i, (geoid, _m, _gh) in enumerate(part):
                         rows[geoid][col] = float(vals[i])
                         rows[geoid][f"{col}_lo"] = round(float(lo[i]), 2)
@@ -274,7 +302,7 @@ def main() -> None:
     import argparse
     from pathlib import Path
 
-    from microhappiness import calibrate, density
+    from microhappiness import calibrate, cbp, density
     from microhappiness.acs import fetch_acs_margins_sf
     from microhappiness.binning import bin_gss
     from microhappiness.gss import GSS_COLUMNS, load_gss, recode_predictors
@@ -299,14 +327,38 @@ def main() -> None:
         keep = set(args.states.split(","))
         acs = {g: m for g, m in acs.items() if g[:2] in keep}
     print(f"  {len(acs)} {geo}s with circumstantial margins")
-    print("building density layer (gazetteer + B01001) …")
+    print("building density + congregations layers (gazetteer + B01001 + CBP) …")
     # Anchors/reference always come from the national TRACT distribution (the belts describe tracts).
     ld_tract, pop_tract = density.log_density("tract", args.acs_year)
     anchors = density.belt_anchors(gss, ld_tract, pop_tract)
     log_dens = ld_tract if geo == "tract" else density.log_density(geo, args.acs_year)[0]
-    print(f"  belt anchors {dict(sorted((int(k), round(v, 2)) for k, v in anchors.items()))}")
+    ld_zcta, pop_zcta = density.log_density("zcta", args.acs_year)
+    rate_zcta = cbp.log_congregation_rate("zcta", acs_year=args.acs_year)
+    cong_cells = cbp.cell_rates(gss, rate_zcta, ld_zcta, pop_zcta, anchors)
+    log_cong = rate_zcta if geo == "zcta" else cbp.log_congregation_rate("tract",
+                                                                        acs_year=args.acs_year)
+    # NO EXTRAPOLATION beyond the fitted supply range: the congregation coefficient is identified on
+    # the 24 region x belt cell means, so area values are clipped to that span. This also defuses the
+    # CBP zero-inflation artifact — half of (mostly rural, low-pop) ZCTAs show ZERO employer
+    # congregations because volunteer-run congregations have no paid staff, which is measurement,
+    # not absence; unclipped they'd sit ~0.6 log10 below the fitted support and crush attendance.
+    lo_c, hi_c = min(cong_cells.values()), max(cong_cells.values())
+    log_cong = {g: min(max(v, lo_c), hi_c) for g, v in log_cong.items()}
+    ref_c = float(np.average([min(max(rate_zcta[z], lo_c), hi_c) for z in rate_zcta],
+                             weights=[pop_zcta.get(z, 0.0) for z in rate_zcta]))
+    for g in acs:  # areas with no CBP-linkable ZIP get the national mean supply (a neutral offset)
+        log_cong.setdefault(g, ref_c)
+    print(f"  belt anchors {dict(sorted((int(k), round(v, 2)) for k, v in anchors.items()))}; "
+          f"congregation supply clipped to fitted range [{lo_c:.2f}, {hi_c:.2f}], ref {ref_c:.2f}")
 
-    full, meta = estimate(gss, acs, places_health, log_dens, anchors, log=print)
+    area_covs = {"logdens": log_dens, "logcong": log_cong}
+    respondent_covs = {
+        "logdens": lambda d: d["srcbelt"].map(anchors),
+        "logcong": lambda d: pd.Series(
+            [cong_cells.get((r, b)) for r, b in zip(d["region"], d["srcbelt"])], index=d.index,
+            dtype="float"),
+    }
+    full, meta = estimate(gss, acs, places_health, area_covs, respondent_covs, log=print)
     target = gss_national_targets(gss)
     offs = calibrate.offsets(full, target)
     full = calibrate.apply_offsets(full, offs)

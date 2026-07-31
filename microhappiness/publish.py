@@ -51,13 +51,21 @@ OUTCOME_METRICS = {
         "combine": "weighted_mean", "value": "attendance_index", "weight": "adult_pop",
         "unit": "index_0_100", "direction": "higher_better", "synthetic": True,
         "label": "Modeled religious attendance", "category": "religion_spiritual",
-        "caveat": RELIGION_CAVEAT,
+        "caveat": RELIGION_CAVEAT + " Also uses local congregation supply (CBP religious "
+                  "organizations per capita), which carries denominational geography composition "
+                  "alone cannot see — but inverts where congregations are few and large "
+                  "(e.g. LDS Utah models far too low); reliable where congregations are "
+                  "many and small, as in Chicago.",
     },
     "modeled_weekly_attendance_pct": {
         "combine": "weighted_mean", "value": "weekly_attendance_pct", "weight": "adult_pop",
         "unit": "percent", "direction": "higher_better", "synthetic": True,
         "label": "Modeled % weekly attenders", "category": "religion_spiritual",
-        "caveat": RELIGION_CAVEAT,
+        "caveat": RELIGION_CAVEAT + " Also uses local congregation supply (CBP religious "
+                  "organizations per capita), which carries denominational geography composition "
+                  "alone cannot see — but inverts where congregations are few and large "
+                  "(e.g. LDS Utah models far too low); reliable where congregations are "
+                  "many and small, as in Chicago.",
     },
     "modeled_no_religion_pct": {
         "combine": "weighted_mean", "value": "no_religion_pct", "weight": "adult_pop",
@@ -65,6 +73,25 @@ OUTCOME_METRICS = {
         "label": "Modeled % no religious affiliation", "category": "religion_spiritual",
         "caveat": RELIGION_CAVEAT + " Regional cultural secularism (e.g. the West's) is not "
                   "compositional and is largely missed; within-metro contrasts are the supported use.",
+    },
+    "modeled_god_certain_pct": {
+        "combine": "weighted_mean", "value": "god_certain_pct", "weight": "adult_pop",
+        "unit": "percent", "direction": "higher_better", "synthetic": True,
+        "label": "Modeled % certain God exists", "category": "religion_spiritual",
+        "caveat": RELIGION_CAVEAT,
+    },
+    "modeled_strong_affiliation_pct": {
+        "combine": "weighted_mean", "value": "strong_affiliation_pct", "weight": "adult_pop",
+        "unit": "percent", "direction": "higher_better", "synthetic": True,
+        "label": "Modeled % strongly religious", "category": "religion_spiritual",
+        "caveat": RELIGION_CAVEAT,
+    },
+    "modeled_life_exciting_pct": {
+        "combine": "weighted_mean", "value": "life_exciting_pct", "weight": "adult_pop",
+        "unit": "percent", "direction": "higher_better", "synthetic": True,
+        "label": "Modeled % finding life exciting", "category": "psychological_wellbeing",
+        "caveat": CIRC_CAVEAT + " Geographic ordering is weak-positive on every axis (region "
+                  "+0.2..+0.6) — treat as a soft signal, strongest for within-metro contrasts.",
     },
     "modeled_financial_satisfaction_pct": {
         "combine": "weighted_mean", "value": "financial_satisfaction_pct", "weight": "adult_pop",
@@ -118,6 +145,74 @@ OUTCOME_METRICS.update({
     },
 })
 # PRAY remains evaluated-and-REJECTED (outcomes.REJECTED): ceiling at the kill line, weak holdout.
+
+
+ATUS_CAVEAT = (
+    "Synthetic small-area estimates from the American Time Use Survey: the time use EXPECTED given "
+    "an area's circumstantial composition (employment and full-time work, income, marital/household "
+    "status, home ownership) — NOT an observed local time diary. Identity characteristics "
+    "(age/sex/race) are excluded by policy, as in the happiness metrics. Leisure follows the BLS "
+    "'leisure and sports' convention (socializing/relaxing/leisure plus sports/exercise). "
+    "Ceiling evidence from the commute anchor (the one time-use quantity ACS measures per tract): "
+    "modeled vs measured tract commutes correlate at only r~0.21, so place-driven variation beyond "
+    "composition is largely unseen — read tract values as compositional expectations, strongest "
+    "for within-metro contrasts.")
+
+ATUS_METRICS = {
+    "modeled_leisure_minutes": {
+        "combine": "weighted_mean", "value": "leisure_minutes", "weight": "adult_pop",
+        "unit": "minutes_per_day", "direction": "higher_better", "synthetic": True,
+        "label": "Modeled daily leisure time", "category": "time_balance",
+        "caveat": ATUS_CAVEAT + " Note the composition effect: areas with more retirees or fewer "
+                  "workers model MORE leisure — this is a time-budget descriptor, not a prosperity "
+                  "score.",
+    },
+    "modeled_time_poverty_pct": {
+        "combine": "weighted_mean", "value": "time_poverty_pct", "weight": "adult_pop",
+        "unit": "percent", "direction": "lower_better", "synthetic": True,
+        "label": "Modeled time poverty", "category": "time_balance",
+        "caveat": ATUS_CAVEAT + " Time-poor = under 120 minutes (2h) of daily leisure — an absolute "
+                  "threshold that lands within ~6% of the 50%-of-median relative line used in the "
+                  "time-poverty literature.",
+    },
+}
+
+
+def write_atus_spec(out_dir, geographies, *, vintage: str, atus_years: str, calibration=None,
+                    validation=None):
+    """Merge the ATUS time-use layers + metrics into aggregation_spec.json (sibling of the GSS
+    outcome layers; layer `atus_<geo>` reads atus_<geo>.csv)."""
+    out_dir = Path(out_dir)
+    path = out_dir / "aggregation_spec.json"
+    spec = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {
+        "contract": CONTRACT, "source": SOURCE, "synthetic_estimate": True}
+    layers = spec.get("layers", {})
+    for geo in geographies:
+        layers[f"atus_{geo}"] = {"file": f"atus_{geo}.csv", "kind": "polygon_values",
+                                 "id_field": "geoid"}
+    all_atus = [n for n in layers if n.startswith("atus_")]
+    spec["layers"] = layers
+    metrics = spec.get("metrics", {})
+    metrics.update({mid: {**m, "layer": all_atus, "ci": [f"{m['value']}_lo", f"{m['value']}_hi"]}
+                    for mid, m in ATUS_METRICS.items()})
+    spec["metrics"] = metrics
+    spec["atus_outcomes"] = {
+        "atus_years": atus_years, "acs_vintage": vintage, "confidence_interval": CI_NOTE,
+        "model": ("circumstantial-only weighted MRP on pooled ATUS diary days (TUFNWGTP weights "
+                  "correct the weekend oversampling; CPS-linked demographics); predictors = the "
+                  "shared frame + a fulltime margin (ACS B23022); no PLACES margin (ATUS has no "
+                  "linked health item). Leisure = weighted OLS (weighted zero-share ~5%, so no "
+                  "hurdle); time poverty = weighted logit; the validation commute model is "
+                  "two-part (67% zero days)."),
+    }
+    if calibration is not None:
+        spec["atus_outcomes"]["calibration"] = {
+            "method": "national additive benchmark to the TUFNWGTP-weighted pooled ATUS rate",
+            "offsets": calibration}
+    if validation is not None:
+        spec["atus_outcomes"]["validation"] = validation
+    path.write_text(json.dumps(spec, indent=2))
+    return path
 
 
 CI_NOTE = {

@@ -26,6 +26,11 @@
       "file": "outcomes_zcta.csv",
       "kind": "polygon_values",
       "id_field": "geoid"
+    },
+    "atus_tract": {
+      "file": "atus_tract.csv",
+      "kind": "polygon_values",
+      "id_field": "geoid"
     }
   },
   "metrics": {
@@ -65,6 +70,42 @@
         "pct_very_happy_hi"
       ]
     },
+    "modeled_leisure_minutes": {
+      "combine": "weighted_mean",
+      "value": "leisure_minutes",
+      "weight": "adult_pop",
+      "unit": "minutes_per_day",
+      "direction": "higher_better",
+      "synthetic": true,
+      "label": "Modeled daily leisure time",
+      "category": "time_balance",
+      "caveat": "Synthetic small-area estimates from the American Time Use Survey: the time use EXPECTED given an area's circumstantial composition (employment and full-time work, income, marital/household status, home ownership) \u2014 NOT an observed local time diary. Identity characteristics (age/sex/race) are excluded by policy, as in the happiness metrics. Leisure follows the BLS 'leisure and sports' convention (socializing/relaxing/leisure plus sports/exercise). Ceiling evidence from the commute anchor (the one time-use quantity ACS measures per tract): modeled vs measured tract commutes correlate at only r~0.21, so place-driven variation beyond composition is largely unseen \u2014 read tract values as compositional expectations, strongest for within-metro contrasts. Note the composition effect: areas with more retirees or fewer workers model MORE leisure \u2014 this is a time-budget descriptor, not a prosperity score.",
+      "layer": [
+        "atus_tract"
+      ],
+      "ci": [
+        "leisure_minutes_lo",
+        "leisure_minutes_hi"
+      ]
+    },
+    "modeled_time_poverty_pct": {
+      "combine": "weighted_mean",
+      "value": "time_poverty_pct",
+      "weight": "adult_pop",
+      "unit": "percent",
+      "direction": "lower_better",
+      "synthetic": true,
+      "label": "Modeled time poverty",
+      "category": "time_balance",
+      "caveat": "Synthetic small-area estimates from the American Time Use Survey: the time use EXPECTED given an area's circumstantial composition (employment and full-time work, income, marital/household status, home ownership) \u2014 NOT an observed local time diary. Identity characteristics (age/sex/race) are excluded by policy, as in the happiness metrics. Leisure follows the BLS 'leisure and sports' convention (socializing/relaxing/leisure plus sports/exercise). Ceiling evidence from the commute anchor (the one time-use quantity ACS measures per tract): modeled vs measured tract commutes correlate at only r~0.21, so place-driven variation beyond composition is largely unseen \u2014 read tract values as compositional expectations, strongest for within-metro contrasts. Time-poor = under 120 minutes (2h) of daily leisure \u2014 an absolute threshold that lands within ~6% of the 50%-of-median relative line used in the time-poverty literature.",
+      "layer": [
+        "atus_tract"
+      ],
+      "ci": [
+        "time_poverty_pct_lo",
+        "time_poverty_pct_hi"
+      ]
+    },
     "modeled_attendance_index": {
       "combine": "weighted_mean",
       "value": "attendance_index",
@@ -74,7 +115,7 @@
       "synthetic": true,
       "label": "Modeled religious attendance",
       "category": "religion_spiritual",
-      "caveat": "Synthetic small-area estimates: the religious outcome EXPECTED given an area's demographic AND circumstantial composition (age/sex/race plus income, marital/household status, employment, home ownership, health) \u2014 NOT an observed local measurement or a count of congregations. Unlike the wellbeing metrics, the religion metrics deliberately include identity: attendance and affiliation are strongly age- and race-patterned, and these are descriptive metrics, not wellbeing scores.",
+      "caveat": "Synthetic small-area estimates: the religious outcome EXPECTED given an area's demographic AND circumstantial composition (age/sex/race plus income, marital/household status, employment, home ownership, health) \u2014 NOT an observed local measurement or a count of congregations. Unlike the wellbeing metrics, the religion metrics deliberately include identity: attendance and affiliation are strongly age- and race-patterned, and these are descriptive metrics, not wellbeing scores. Also uses local congregation supply (CBP religious organizations per capita), which carries denominational geography composition alone cannot see \u2014 but inverts where congregations are few and large (e.g. LDS Utah models far too low); reliable where congregations are many and small, as in Chicago.",
       "layer": [
         "outcomes_tract",
         "outcomes_zcta"
@@ -93,7 +134,7 @@
       "synthetic": true,
       "label": "Modeled % weekly attenders",
       "category": "religion_spiritual",
-      "caveat": "Synthetic small-area estimates: the religious outcome EXPECTED given an area's demographic AND circumstantial composition (age/sex/race plus income, marital/household status, employment, home ownership, health) \u2014 NOT an observed local measurement or a count of congregations. Unlike the wellbeing metrics, the religion metrics deliberately include identity: attendance and affiliation are strongly age- and race-patterned, and these are descriptive metrics, not wellbeing scores.",
+      "caveat": "Synthetic small-area estimates: the religious outcome EXPECTED given an area's demographic AND circumstantial composition (age/sex/race plus income, marital/household status, employment, home ownership, health) \u2014 NOT an observed local measurement or a count of congregations. Unlike the wellbeing metrics, the religion metrics deliberately include identity: attendance and affiliation are strongly age- and race-patterned, and these are descriptive metrics, not wellbeing scores. Also uses local congregation supply (CBP religious organizations per capita), which carries denominational geography composition alone cannot see \u2014 but inverts where congregations are few and large (e.g. LDS Utah models far too low); reliable where congregations are many and small, as in Chicago.",
       "layer": [
         "outcomes_tract",
         "outcomes_zcta"
@@ -120,6 +161,63 @@
       "ci": [
         "no_religion_pct_lo",
         "no_religion_pct_hi"
+      ]
+    },
+    "modeled_god_certain_pct": {
+      "combine": "weighted_mean",
+      "value": "god_certain_pct",
+      "weight": "adult_pop",
+      "unit": "percent",
+      "direction": "higher_better",
+      "synthetic": true,
+      "label": "Modeled % certain God exists",
+      "category": "religion_spiritual",
+      "caveat": "Synthetic small-area estimates: the religious outcome EXPECTED given an area's demographic AND circumstantial composition (age/sex/race plus income, marital/household status, employment, home ownership, health) \u2014 NOT an observed local measurement or a count of congregations. Unlike the wellbeing metrics, the religion metrics deliberately include identity: attendance and affiliation are strongly age- and race-patterned, and these are descriptive metrics, not wellbeing scores.",
+      "layer": [
+        "outcomes_tract",
+        "outcomes_zcta"
+      ],
+      "ci": [
+        "god_certain_pct_lo",
+        "god_certain_pct_hi"
+      ]
+    },
+    "modeled_strong_affiliation_pct": {
+      "combine": "weighted_mean",
+      "value": "strong_affiliation_pct",
+      "weight": "adult_pop",
+      "unit": "percent",
+      "direction": "higher_better",
+      "synthetic": true,
+      "label": "Modeled % strongly religious",
+      "category": "religion_spiritual",
+      "caveat": "Synthetic small-area estimates: the religious outcome EXPECTED given an area's demographic AND circumstantial composition (age/sex/race plus income, marital/household status, employment, home ownership, health) \u2014 NOT an observed local measurement or a count of congregations. Unlike the wellbeing metrics, the religion metrics deliberately include identity: attendance and affiliation are strongly age- and race-patterned, and these are descriptive metrics, not wellbeing scores.",
+      "layer": [
+        "outcomes_tract",
+        "outcomes_zcta"
+      ],
+      "ci": [
+        "strong_affiliation_pct_lo",
+        "strong_affiliation_pct_hi"
+      ]
+    },
+    "modeled_life_exciting_pct": {
+      "combine": "weighted_mean",
+      "value": "life_exciting_pct",
+      "weight": "adult_pop",
+      "unit": "percent",
+      "direction": "higher_better",
+      "synthetic": true,
+      "label": "Modeled % finding life exciting",
+      "category": "psychological_wellbeing",
+      "caveat": "Synthetic small-area estimates: the outcome EXPECTED given an area's circumstantial composition (income, marital/household status, employment, home ownership, health) \u2014 NOT an observed local measurement. Identity characteristics (age/sex/race) are excluded by policy, as in the happiness metrics. Geographic ordering is weak-positive on every axis (region +0.2..+0.6) \u2014 treat as a soft signal, strongest for within-metro contrasts.",
+      "layer": [
+        "outcomes_tract",
+        "outcomes_zcta"
+      ],
+      "ci": [
+        "life_exciting_pct_lo",
+        "life_exciting_pct_hi"
       ]
     },
     "modeled_financial_satisfaction_pct": {
@@ -267,15 +365,61 @@
       "method": "national additive benchmark to design-weighted GSS rate, RECENT window (attendance, trust, and socializing decline secularly, so pooled rates would overstate today's levels)",
       "window": "2018-2024",
       "offsets": {
-        "weekly_attendance_pct": -3.24,
-        "attendance_index": -5.111,
+        "weekly_attendance_pct": -3.948,
+        "attendance_index": -5.952,
         "no_religion_pct": 5.677,
+        "god_certain_pct": -4.41,
+        "strong_affiliation_pct": -1.429,
         "fear_walking_pct": 3.746,
         "financial_satisfaction_pct": -5.555,
         "social_trust_pct": -8.97,
         "weekly_friends_pct": -3.948,
         "weekly_neighbors_pct": -5.159,
-        "weekly_bar_pct": -3.118
+        "weekly_bar_pct": -3.118,
+        "life_exciting_pct": -8.863
+      }
+    }
+  },
+  "atus_outcomes": {
+    "atus_years": "2015-2025",
+    "acs_vintage": "2022",
+    "confidence_interval": {
+      "level": 0.9,
+      "scope": "model_coefficient",
+      "note": "A 90% interval over the fitted GSS coefficients' sampling uncertainty only (<metric>_lo/_hi columns). It EXCLUDES the PLACES-margin and structural/synthetic uncertainty, which are larger \u2014 so treat it as a lower bound on total uncertainty."
+    },
+    "model": "circumstantial-only weighted MRP on pooled ATUS diary days (TUFNWGTP weights correct the weekend oversampling; CPS-linked demographics); predictors = the shared frame + a fulltime margin (ACS B23022); no PLACES margin (ATUS has no linked health item). Leisure = weighted OLS (weighted zero-share ~5%, so no hurdle); time poverty = weighted logit; the validation commute model is two-part (67% zero days).",
+    "calibration": {
+      "method": "national additive benchmark to the TUFNWGTP-weighted pooled ATUS rate",
+      "offsets": {
+        "leisure_minutes": -11.13,
+        "time_poverty_pct": 1.206
+      }
+    },
+    "validation": {
+      "commute_anchor": {
+        "commute_conditional_min": {
+          "pearson_r": 0.214,
+          "spearman_r": 0.234,
+          "n_tracts": 84081
+        },
+        "commute_expected_min": {
+          "pearson_r": -0.024,
+          "spearman_r": -0.005,
+          "n_tracts": 84081
+        }
+      },
+      "spread": {
+        "leisure_minutes": {
+          "p10": 274.5,
+          "p50": 296.5,
+          "p90": 326.6
+        },
+        "time_poverty_pct": {
+          "p10": 17.8,
+          "p50": 20.5,
+          "p90": 22.7
+        }
       }
     }
   }

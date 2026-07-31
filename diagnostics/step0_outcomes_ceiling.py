@@ -9,7 +9,11 @@ fits IDENTITY-AWARE (per Harry: descriptive metrics may use age/sex/race; wellbe
 not); the rest are circumstantial.
 
 2026-07 verdicts (GSS cumulative through 2024) — published set in outcomes.OUTCOMES, failures in
-outcomes.REJECTED:
+outcomes.REJECTED. Second screen (same date): god_certain (R2 .065, region +.96) and
+strong_affiliation (.044, +.96) join the identity religion family; life_exciting (.039, weak-positive
+everywhere, no inversion) joins the caveated circumstantial set; HAPMAR (.015, below the kill line)
+and SATJOB (.015 AND region -0.98) rejected — see the note above outcomes.REJECTED (their
+subpop-conditioned fits aren't re-measurable by this generic script):
   PUBLISH: attendance* .055 (region r +.93) | no_religion* .081 (+.90) | financial_satisfaction
   .099 (recent-region +.90; pooled-region negative is an era-composition artifact — noted caveat) |
   social_trust .052 (+.98).                                    (* = identity-aware)
@@ -40,7 +44,7 @@ def outcome_ceilings(gss_path: str) -> dict:
         dims = bundle_dims(spec.identity)
         rhs = IDENTITY_RHS if spec.identity else _FORMULA_RHS
         need = [spec.gss_col, *dims]
-        if spec.density:
+        if spec.area_covariates:
             # The gate uses categorical SRCBELT — the information-equivalent of the production
             # log-density term (which needs tract data for its anchors).
             rhs = rhs + " + C(srcbelt)"
@@ -65,7 +69,7 @@ def outcome_ceilings(gss_path: str) -> dict:
         recent = d[d["year"] >= 2013].groupby("region").agg(actual=("_top", "mean"),
                                                             pred=("_pred", "mean"))
         belt_r = None
-        if spec.density:
+        if spec.area_covariates:
             bc = d.groupby(["region", "srcbelt"]).agg(actual=("_top", "mean"),
                                                       pred=("_pred", "mean"), n=("_top", "size"))
             bc = bc[bc["n"] >= 100]

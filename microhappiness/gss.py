@@ -18,8 +18,9 @@ import pandas as pd
 
 # GSS columns we pull (cumulative-file names, lowercased on load).
 GSS_COLUMNS = (
-    "year", "happy", "attend", "pray", "relig", "satfin", "trust",
-    "socfrend", "socommun", "socbar", "fear", "srcbelt", "marital", "age", "sex", "race", "hispanic",
+    "year", "happy", "attend", "pray", "relig", "god", "reliten", "satfin", "trust",
+    "socfrend", "socommun", "socbar", "fear", "life", "srcbelt",
+    "marital", "age", "sex", "race", "hispanic",
     "wrkstat", "educ", "degree", "realinc", "income", "region",
     "health", "mntlhlth",           # self-rated health + poor-mental-health days (some years)
     "dwelown", "hompop", "childs", "hrs1",  # GNH domains: home ownership / household / kids / time
@@ -87,10 +88,12 @@ def recode_predictors(df: pd.DataFrame) -> pd.DataFrame:
     # SATFIN 1=satisfied..3=not at all; TRUST 1=can trust,2=can't be too careful,3=depends;
     # SOCFREND/SOCOMMUN/SOCBAR 1=almost daily..7=never.
     # FEAR 1=yes afraid to walk at night nearby, 2=no; SRCBELT 1=central city top-12 SMSA .. 6=rural
-    # (through 2022; the belt anchors the density bridge in density.py).
-    for col, lo, hi in (("attend", 0, 8), ("pray", 1, 6), ("relig", 1, 13), ("satfin", 1, 3),
-                        ("trust", 1, 3), ("socfrend", 1, 7), ("socommun", 1, 7), ("socbar", 1, 7),
-                        ("fear", 1, 2), ("srcbelt", 1, 6)):
+    # (through 2022; the belt anchors the density bridge in density.py); GOD 6=know God exists;
+    # RELITEN 1=strong affiliation; LIFE 1=exciting,2=routine,3=dull.
+    for col, lo, hi in (("attend", 0, 8), ("pray", 1, 6), ("relig", 1, 13), ("god", 1, 6),
+                        ("reliten", 1, 4), ("satfin", 1, 3), ("trust", 1, 3), ("socfrend", 1, 7),
+                        ("socommun", 1, 7), ("socbar", 1, 7), ("fear", 1, 2), ("life", 1, 3),
+                        ("srcbelt", 1, 6)):
         if col in out:
             v = pd.to_numeric(out[col], errors="coerce")
             out[col] = v.where((v >= lo) & (v <= hi))

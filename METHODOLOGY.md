@@ -232,6 +232,43 @@ explicit partial-validity caveats, weekly_bar carrying the strongest (its geogra
 entirely the density gradient). **PRAY stays rejected** (ceiling 0.024 at the kill line, holdout
 ~0.60; `outcomes.REJECTED`).
 
+**Second screen (2026-07):** `god_certain` (R² .065, region +.96) and `strong_affiliation` (.044,
++.96) join the identity-aware religion family; `life_exciting` (.039, weak-positive on every axis,
+no inversion) joins the caveated circumstantial set. **Rejected:** HAPMAR very-happy-marriage among
+married adults (.015 — below the kill line; marriage quality isn't circumstantially structured) and
+SATJOB among workers (.015 AND region −0.98 — both blades fail).
+
+**Congregation supply (2026-07):** the attendance model adds a second ecological covariate,
+`logcong` — CBP religious organizations (NAICS 8131) per 1,000 adults (`cbp.py`; ZIP counts →
+ZCTAs, tracts via the Census relationship file's dominant ZCTA). Fit-side attachment is region ×
+belt cell means (24 cells). This is the supply side of the modeled behavior and the route by which
+denominational geography enters, which composition alone cannot see. Gate: pseudo-R² 0.056 → 0.060,
+holdout region × belt **+0.59 → +0.80**, region × era **+0.70 → +0.87**; β ≈ +1.8 per log10 unit.
+
+*Zero-inflation trap (caught in the first national build):* CBP counts **employer** establishments
+only, so 52% of (mostly rural, low-population) ZCTAs report ZERO congregations — volunteer-run
+congregations are invisible, which is measurement, not absence. Unclipped, those areas sat ~0.6
+log10 below the fitted support and the ZCTA attendance median collapsed to ~12%. Projected supply
+is therefore **clipped to the fitted cell-mean range** (no extrapolation beyond the values the
+coefficient was identified on), and areas with no CBP-linkable ZIP get the national mean supply
+(a neutral offset).
+
+*Built-layer result and the Utah blind spot:* the covariate transforms regional fidelity — modeled
+region magnitudes go from a ~1pt band to 21.6–26.7 vs actual 18.9–30.0 (the West lands exactly),
+tract p10–p90 widens to 14pts vs a 2.3pt CI, and the state top/bottom tiers now match Pew
+(MS/SC/AL/NC highest; CA/MA/NV lowest). **The known failure: Utah models LOWEST (17%) when it is
+actually near the top.** Congregations-per-capita conflates supply with congregation SIZE
+structure — LDS meetinghouses are few and large, so high-attendance Utah reads as low-supply. The
+proxy works where congregations are many-and-small (storefront churches, the South, Chicago); it
+inverts for denominations organized around large consolidated congregations. Caveated in the spec;
+a congregation-size-aware supply measure (e.g. NaNDA/ARDA adherence rates) is the known fix.
+
+**External validation vs the Social Capital Atlas (2026-07):** modeled `social_trust_pct` correlates
+**r = +0.76** (pop-weighted +0.79) with Chetty's ZIP-level *economic connectedness* across ~17.6k
+ZIPs — a fully independent, Facebook-network-derived measure never used anywhere in the pipeline.
+Trust vs volunteering rate +0.26/+0.38. (Trust vs *support ratio* is mildly negative — consistent
+with Chetty's own bonding-vs-bridging distinction, not a contradiction.)
+
 **Built-layer validation** (2026-07 national run, 82,426 tracts; `validate.outcome_region_check`
 vs 2018–2024 GSS region rates, tract p10–p90 spread vs median coefficient CI):
 
@@ -245,6 +282,44 @@ vs 2018–2024 GSS region rates, tract p10–p90 spread vs median coefficient CI
 **Calibration** is benchmarked to the **recent-window** (2018–2024) design-weighted GSS rates, not
 pooled — attendance and trust decline secularly, so pooled benchmarks would overstate today's
 levels. A deliberate divergence from the happiness calibration.
+
+## 5b. Modeled ATUS time-use outcomes (`atus_outcomes.py`)
+
+The same MRP machinery pointed at a second survey: the **American Time Use Survey** (BLS), ten
+pooled diary years (2015–2025; 2020 is excluded because the multi-year files carry no usable pooled
+weight for its pandemic-truncated collection — 87,686 adult diary days). Two structural differences
+from GSS, handled in `atus.py`: each respondent is **one diary day**, so the final weight `TUFNWGTP`
+(which corrects the deliberate ~50% weekend oversampling) is applied to *everything* — fits (WLS /
+weighted logit), the poststrat seed, and calibration targets; and demographics come from the
+**linked CPS record**, whose family-income brackets map directly onto the ACS B19001 bins (no GSS
+percentile bridge needed). The predictor frame is the circumstantial v1 set minus health (no linked
+health item) plus **`fulltime`** (usually works 35+ hours; ACS margin from B23022) — the
+load-bearing time-budget predictor. Identity stays excluded (wellbeing-family policy).
+
+Published outcomes (`atus_tract.csv`, category *time_balance*):
+- **`leisure_minutes`** — average daily leisure, the BLS "leisure and sports" convention (major
+  categories 12 + 13, sports/exercise **included** so levels match BLS news-release tables).
+  Weighted zero-share is ~5%, so a single weighted OLS is used (no hurdle).
+- **`time_poverty_pct`** — share of adults under **120 leisure minutes/day**. The 2-hour absolute
+  line sits within ~6% of the 50%-of-median relative threshold used in the time-poverty literature
+  (Kalenkoski–Hamrick style; weighted median is ~255 min), and an absolute line is stabler across
+  reruns.
+
+**Gate results** (`diagnostics/step0_atus_ceiling.py`; both blades, plus a third blade GSS never
+allowed). ATUS public use carries *state + metro status*, so holdout ordering is tested on real
+sub-regional geography: leisure ceiling R² **0.159** (the strongest individual-level ceiling in the
+repo), holdout state r **+0.82** (39 states), region×metro **+0.87**; time_poverty 0.056, state
++0.47, region×metro +0.54. Both pass. Tract maps are not flat (weighted p10–p90: 274–327 min;
+17.8–22.7%), and within-metro spread matches the national spread (Cook County p10–p90: 270–331).
+
+**The commute anchor — an external ceiling measurement.** Commute is the one time-use quantity the
+census *measures* per tract (B08013/B08303), so a validation-only two-part commute model (P(any) ×
+minutes|any; 67% zero days) rides along, and its tract predictions are correlated against ACS
+measured means: **r ≈ 0.21** (Spearman 0.23, 84k tracts). That number is the honest bound: for a
+place-driven quantity, composition raking recovers only a small share of true cross-tract variation.
+Leisure's variation is largely *compositional* (its state-level holdout r of +0.82 is the relevant
+evidence), but the anchor is quoted in every caveat so no one reads tract contrasts as local
+measurement. Calibration is additive to the pooled TUFNWGTP-weighted national rates.
 
 ## 6. Data access
 
