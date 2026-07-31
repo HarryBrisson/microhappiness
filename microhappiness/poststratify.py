@@ -30,7 +30,8 @@ def rake(masks, seed_w, margins, *, iters: int = 40, tol: float = 1e-9):
     w = np.asarray(seed_w, dtype=float).copy()
     w /= w.sum()
     for _ in range(iters):
-        prev = w
+        prev = w.copy()  # a real copy — `prev = w` aliased the in-place updates, so the convergence
+        # test always saw 0 and IPF silently stopped after ONE pass (fixed 2026-07)
         for pred, targets in margins.items():
             pm = masks[pred]
             for level, target in targets.items():
@@ -46,3 +47,40 @@ def rake(masks, seed_w, margins, *, iters: int = 40, tol: float = 1e-9):
         if np.max(np.abs(w - prev)) < tol:
             break
     return w
+
+
+def rake_many(masks, seed_w, margin_list, *, iters: int = 40, tol: float = 1e-7, chunk: int = 2000):
+    """Rake MANY areas at once (vectorized across areas) — the per-area python loop is the bottleneck
+    once the seed grows past a few hundred cells (the identity-aware outcomes' seed is ~6k cells).
+
+    margin_list: a list (one entry per area) of {predictor: {level: target}} dicts, all sharing the
+    same predictor set and levels (missing levels are treated as target 0 for that area — consistent
+    with `rake`, which zeroes cells whose target is 0).
+    Returns an (n_areas x n_cells) weight matrix, rows summing to 1.
+    """
+    n = len(margin_list)
+    c = len(seed_w)
+    preds = list(margin_list[0])
+    # Per predictor: level -> (n,) target vector.
+    targets = {p: {lvl: np.fromiter((m[p].get(lvl, 0.0) for m in margin_list), float, n)
+                   for lvl in masks[p]} for p in preds}
+    out = np.empty((n, c))
+    w0 = np.asarray(seed_w, dtype=float)
+    w0 = w0 / w0.sum()
+    for lo in range(0, n, chunk):
+        hi = min(lo + chunk, n)
+        w = np.tile(w0, (hi - lo, 1))
+        for _ in range(iters):
+            prev = w.copy()
+            for p in preds:
+                for lvl, mask in masks[p].items():
+                    tgt = targets[p][lvl][lo:hi]
+                    cur = w[:, mask].sum(axis=1)
+                    # cur>0: scale to target (target 0 zeroes the cells, like `rake`); cur==0: leave.
+                    factor = np.divide(tgt, cur, out=np.ones_like(cur), where=cur > 0)
+                    w[:, mask] *= factor[:, None]
+                w /= np.maximum(w.sum(axis=1, keepdims=True), 1e-300)
+            if np.max(np.abs(w - prev)) < tol:
+                break
+        out[lo:hi] = w
+    return out
