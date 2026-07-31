@@ -18,6 +18,8 @@ data_value=prevalence %, totalpopulation=adult population.
 from __future__ import annotations
 
 import json
+import os
+from pathlib import Path
 from urllib.parse import quote
 from urllib.request import urlopen
 
@@ -57,10 +59,17 @@ def fetch_measure(measure: str = "GHLTH", *, geography: str = "tract", state_abb
     """{geoid: {'fraction': p, 'adult_pop': n}} for a PLACES measure. National unless state_abbr given.
 
     For a national tract pull, KY/PA (absent from the 2025 release) are backfilled from the 2023 release.
+    Raw results are cached on disk (ABC) so re-runs and sibling pipelines skip the slow SODA paging.
     """
+    cache = (Path(os.environ.get("MICROHAPPINESS_PLACES_CACHE", "data/places_cache"))
+             / f"{measure}_{geography}_{state_abbr or 'us'}.json")
+    if cache.exists():
+        return json.loads(cache.read_text(encoding="utf-8"))
     out = _pull(RESOURCE[geography], measure, state_abbr)
     if geography == "tract" and state_abbr is None:
         for st in _FALLBACK_STATES:
             for geoid, rec in _pull(_TRACT_FALLBACK, measure, st).items():
                 out.setdefault(geoid, rec)  # fill only what the primary release lacked
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(json.dumps(out), encoding="utf-8")
     return out
