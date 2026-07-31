@@ -29,6 +29,18 @@ A nationwide table — **78,600 census tracts + 29,579 ZCTAs** — with, per are
 …plus a `byop/v1` `aggregation_spec.json` so any consumer can roll the per-area values up to its own
 polygons. This drives the **Modeled happiness** metric live in [Ward Wise Penlight](https://penlight.wardwise.org).
 
+The same pipeline also publishes further **modeled GSS outcomes** (`outcomes_<geo>.csv`, via
+`python -m microhappiness.outcomes --geography tract`): a **religion family** (attendance index +
+weekly share, % no affiliation) that — unlike the wellbeing metrics — deliberately includes
+age/sex/race (descriptive metrics; identity doubles their ceiling); a **wellbeing family**
+(% satisfied with finances, social trust) that stays identity-free; **fear of walking at night**
+(identity fitted but standardized to the national mix, plus a population-**density** term learned
+from GSS place-type belts and projected on each tract's actual density — so it varies within
+cities); and a **socializing family** (friends/neighbors/bar weekly) published with explicit
+partial-validity caveats — it orders place types, not regions. Every outcome passes a two-blade
+gate (variance ceiling AND holdout geographic ordering; PRAY failed and is not published). Caveats
+and gate results in METHODOLOGY.md §5a.
+
 ## How it works
 
 ```

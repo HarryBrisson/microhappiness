@@ -16,6 +16,16 @@
       "file": "happiness_zcta.csv",
       "kind": "polygon_values",
       "id_field": "geoid"
+    },
+    "outcomes_tract": {
+      "file": "outcomes_tract.csv",
+      "kind": "polygon_values",
+      "id_field": "geoid"
+    },
+    "outcomes_zcta": {
+      "file": "outcomes_zcta.csv",
+      "kind": "polygon_values",
+      "id_field": "geoid"
     }
   },
   "metrics": {
@@ -54,6 +64,177 @@
         "pct_very_happy_lo",
         "pct_very_happy_hi"
       ]
+    },
+    "modeled_attendance_index": {
+      "combine": "weighted_mean",
+      "value": "attendance_index",
+      "weight": "adult_pop",
+      "unit": "index_0_100",
+      "direction": "higher_better",
+      "synthetic": true,
+      "label": "Modeled religious attendance",
+      "category": "religion_spiritual",
+      "caveat": "Synthetic small-area estimates: the religious outcome EXPECTED given an area's demographic AND circumstantial composition (age/sex/race plus income, marital/household status, employment, home ownership, health) \u2014 NOT an observed local measurement or a count of congregations. Unlike the wellbeing metrics, the religion metrics deliberately include identity: attendance and affiliation are strongly age- and race-patterned, and these are descriptive metrics, not wellbeing scores.",
+      "layer": [
+        "outcomes_tract",
+        "outcomes_zcta"
+      ],
+      "ci": [
+        "attendance_index_lo",
+        "attendance_index_hi"
+      ]
+    },
+    "modeled_weekly_attendance_pct": {
+      "combine": "weighted_mean",
+      "value": "weekly_attendance_pct",
+      "weight": "adult_pop",
+      "unit": "percent",
+      "direction": "higher_better",
+      "synthetic": true,
+      "label": "Modeled % weekly attenders",
+      "category": "religion_spiritual",
+      "caveat": "Synthetic small-area estimates: the religious outcome EXPECTED given an area's demographic AND circumstantial composition (age/sex/race plus income, marital/household status, employment, home ownership, health) \u2014 NOT an observed local measurement or a count of congregations. Unlike the wellbeing metrics, the religion metrics deliberately include identity: attendance and affiliation are strongly age- and race-patterned, and these are descriptive metrics, not wellbeing scores.",
+      "layer": [
+        "outcomes_tract",
+        "outcomes_zcta"
+      ],
+      "ci": [
+        "weekly_attendance_pct_lo",
+        "weekly_attendance_pct_hi"
+      ]
+    },
+    "modeled_no_religion_pct": {
+      "combine": "weighted_mean",
+      "value": "no_religion_pct",
+      "weight": "adult_pop",
+      "unit": "percent",
+      "direction": "lower_better",
+      "synthetic": true,
+      "label": "Modeled % no religious affiliation",
+      "category": "religion_spiritual",
+      "caveat": "Synthetic small-area estimates: the religious outcome EXPECTED given an area's demographic AND circumstantial composition (age/sex/race plus income, marital/household status, employment, home ownership, health) \u2014 NOT an observed local measurement or a count of congregations. Unlike the wellbeing metrics, the religion metrics deliberately include identity: attendance and affiliation are strongly age- and race-patterned, and these are descriptive metrics, not wellbeing scores. Regional cultural secularism (e.g. the West's) is not compositional and is largely missed; within-metro contrasts are the supported use.",
+      "layer": [
+        "outcomes_tract",
+        "outcomes_zcta"
+      ],
+      "ci": [
+        "no_religion_pct_lo",
+        "no_religion_pct_hi"
+      ]
+    },
+    "modeled_financial_satisfaction_pct": {
+      "combine": "weighted_mean",
+      "value": "financial_satisfaction_pct",
+      "weight": "adult_pop",
+      "unit": "percent",
+      "direction": "higher_better",
+      "synthetic": true,
+      "label": "Modeled % satisfied with finances",
+      "category": "material_wellbeing",
+      "caveat": "Synthetic small-area estimates: the outcome EXPECTED given an area's circumstantial composition (income, marital/household status, employment, home ownership, health) \u2014 NOT an observed local measurement. Identity characteristics (age/sex/race) are excluded by policy, as in the happiness metrics. Cost of living is not modeled, so cross-metro comparisons overstate satisfaction in expensive areas; within-metro contrasts are the supported use.",
+      "layer": [
+        "outcomes_tract",
+        "outcomes_zcta"
+      ],
+      "ci": [
+        "financial_satisfaction_pct_lo",
+        "financial_satisfaction_pct_hi"
+      ]
+    },
+    "modeled_social_trust_pct": {
+      "combine": "weighted_mean",
+      "value": "social_trust_pct",
+      "weight": "adult_pop",
+      "unit": "percent",
+      "direction": "higher_better",
+      "synthetic": true,
+      "label": "Modeled social trust",
+      "category": "community_vitality",
+      "caveat": "Synthetic small-area estimates: the outcome EXPECTED given an area's circumstantial composition (income, marital/household status, employment, home ownership, health) \u2014 NOT an observed local measurement. Identity characteristics (age/sex/race) are excluded by policy, as in the happiness metrics.",
+      "layer": [
+        "outcomes_tract",
+        "outcomes_zcta"
+      ],
+      "ci": [
+        "social_trust_pct_lo",
+        "social_trust_pct_hi"
+      ]
+    },
+    "modeled_fear_walking_pct": {
+      "combine": "weighted_mean",
+      "value": "fear_walking_pct",
+      "weight": "adult_pop",
+      "unit": "percent",
+      "direction": "lower_better",
+      "synthetic": true,
+      "label": "Modeled % afraid to walk at night",
+      "category": "community_vitality",
+      "caveat": "Synthetic small-area estimate of PERCEIVED safety: the share expected to report being afraid to walk alone at night nearby, given the area's circumstantial composition and population density. Identity (age/sex/race) is fitted but STANDARDIZED to the national mix, so the map reflects conditions, not who lives there. A perception measure \u2014 local crime itself is not an input.",
+      "layer": [
+        "outcomes_tract",
+        "outcomes_zcta"
+      ],
+      "ci": [
+        "fear_walking_pct_lo",
+        "fear_walking_pct_hi"
+      ]
+    },
+    "modeled_weekly_friends_pct": {
+      "combine": "weighted_mean",
+      "value": "weekly_friends_pct",
+      "weight": "adult_pop",
+      "unit": "percent",
+      "direction": "higher_better",
+      "synthetic": true,
+      "label": "Modeled % seeing friends weekly",
+      "category": "social_connectedness",
+      "caveat": "Synthetic small-area estimates: the outcome EXPECTED given an area's circumstantial composition (income, marital/household status, employment, home ownership, health) \u2014 NOT an observed local measurement. Identity characteristics (age/sex/race) are excluded by policy, as in the happiness metrics. Geographic validity is partial: the model orders place types (urban/suburban/rural, via the density term) but NOT regions \u2014 regional socializing differences are cultural, not compositional. Within-metro contrasts are the supported use.",
+      "layer": [
+        "outcomes_tract",
+        "outcomes_zcta"
+      ],
+      "ci": [
+        "weekly_friends_pct_lo",
+        "weekly_friends_pct_hi"
+      ]
+    },
+    "modeled_weekly_neighbors_pct": {
+      "combine": "weighted_mean",
+      "value": "weekly_neighbors_pct",
+      "weight": "adult_pop",
+      "unit": "percent",
+      "direction": "higher_better",
+      "synthetic": true,
+      "label": "Modeled % socializing with neighbors weekly",
+      "category": "social_connectedness",
+      "caveat": "Synthetic small-area estimates: the outcome EXPECTED given an area's circumstantial composition (income, marital/household status, employment, home ownership, health) \u2014 NOT an observed local measurement. Identity characteristics (age/sex/race) are excluded by policy, as in the happiness metrics. Geographic validity is partial: the model orders place types (urban/suburban/rural, via the density term) but NOT regions \u2014 regional socializing differences are cultural, not compositional. Within-metro contrasts are the supported use.",
+      "layer": [
+        "outcomes_tract",
+        "outcomes_zcta"
+      ],
+      "ci": [
+        "weekly_neighbors_pct_lo",
+        "weekly_neighbors_pct_hi"
+      ]
+    },
+    "modeled_weekly_bar_pct": {
+      "combine": "weighted_mean",
+      "value": "weekly_bar_pct",
+      "weight": "adult_pop",
+      "unit": "percent",
+      "direction": "higher_better",
+      "synthetic": true,
+      "label": "Modeled % at a bar weekly",
+      "category": "social_connectedness",
+      "caveat": "Synthetic small-area estimates: the outcome EXPECTED given an area's circumstantial composition (income, marital/household status, employment, home ownership, health) \u2014 NOT an observed local measurement. Identity characteristics (age/sex/race) are excluded by policy, as in the happiness metrics. Geographic validity is partial: the model orders place types (urban/suburban/rural, via the density term) but NOT regions \u2014 regional socializing differences are cultural, not compositional. Within-metro contrasts are the supported use. The weakest of the socializing metrics: its geographic signal is almost entirely the density gradient.",
+      "layer": [
+        "outcomes_tract",
+        "outcomes_zcta"
+      ],
+      "ci": [
+        "weekly_bar_pct_lo",
+        "weekly_bar_pct_hi"
+      ]
     }
   },
   "confidence_interval": {
@@ -66,6 +247,36 @@
     "offsets": {
       "happiness_index": 3.21,
       "pct_very_happy": 4.479
+    }
+  },
+  "outcomes": {
+    "gss_years": "1972-2024",
+    "acs_vintage": "2022",
+    "confidence_interval": {
+      "level": 0.9,
+      "scope": "model_coefficient",
+      "note": "A 90% interval over the fitted GSS coefficients' sampling uncertainty only (<metric>_lo/_hi columns). It EXCLUDES the PLACES-margin and structural/synthetic uncertainty, which are larger \u2014 so treat it as a lower bound on total uncertainty."
+    },
+    "models": {
+      "religion family (attendance, no_religion)": "identity-aware: circumstantial predictors + age4/sex/race_ethnicity, raked on ACS B01001 adult age x sex + B03002 race margins (race margin is all-ages \u2014 an approximation) \u2014 descriptive metrics, so identity is deliberately included",
+      "fear_walking": "identity fitted but STANDARDIZED to the national mix (adjusts for response composition without mapping it) + log-density term fit on GSS SRCBELT anchors and projected on each area's actual density (density.py)",
+      "wellbeing family (financial_satisfaction, social_trust)": "circumstantial-only, identity excluded by the same policy as the happiness metrics",
+      "socializing family (weekly_friends/neighbors/bar)": "circumstantial + log-density; orders place types, not regions \u2014 see caveats"
+    },
+    "calibration": {
+      "method": "national additive benchmark to design-weighted GSS rate, RECENT window (attendance, trust, and socializing decline secularly, so pooled rates would overstate today's levels)",
+      "window": "2018-2024",
+      "offsets": {
+        "weekly_attendance_pct": -3.24,
+        "attendance_index": -5.111,
+        "no_religion_pct": 5.677,
+        "fear_walking_pct": 3.746,
+        "financial_satisfaction_pct": -5.555,
+        "social_trust_pct": -8.97,
+        "weekly_friends_pct": -3.948,
+        "weekly_neighbors_pct": -5.159,
+        "weekly_bar_pct": -3.118
+      }
     }
   }
 }

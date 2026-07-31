@@ -33,6 +33,93 @@ METRICS = {
 }
 
 
+RELIGION_CAVEAT = (
+    "Synthetic small-area estimates: the religious outcome EXPECTED given an area's demographic AND "
+    "circumstantial composition (age/sex/race plus income, marital/household status, employment, home "
+    "ownership, health) — NOT an observed local measurement or a count of congregations. Unlike the "
+    "wellbeing metrics, the religion metrics deliberately include identity: attendance and affiliation "
+    "are strongly age- and race-patterned, and these are descriptive metrics, not wellbeing scores.")
+
+CIRC_CAVEAT = (
+    "Synthetic small-area estimates: the outcome EXPECTED given an area's circumstantial composition "
+    "(income, marital/household status, employment, home ownership, health) — NOT an observed local "
+    "measurement. Identity characteristics (age/sex/race) are excluded by policy, as in the happiness "
+    "metrics.")
+
+OUTCOME_METRICS = {
+    "modeled_attendance_index": {
+        "combine": "weighted_mean", "value": "attendance_index", "weight": "adult_pop",
+        "unit": "index_0_100", "direction": "higher_better", "synthetic": True,
+        "label": "Modeled religious attendance", "category": "religion_spiritual",
+        "caveat": RELIGION_CAVEAT,
+    },
+    "modeled_weekly_attendance_pct": {
+        "combine": "weighted_mean", "value": "weekly_attendance_pct", "weight": "adult_pop",
+        "unit": "percent", "direction": "higher_better", "synthetic": True,
+        "label": "Modeled % weekly attenders", "category": "religion_spiritual",
+        "caveat": RELIGION_CAVEAT,
+    },
+    "modeled_no_religion_pct": {
+        "combine": "weighted_mean", "value": "no_religion_pct", "weight": "adult_pop",
+        "unit": "percent", "direction": "lower_better", "synthetic": True,
+        "label": "Modeled % no religious affiliation", "category": "religion_spiritual",
+        "caveat": RELIGION_CAVEAT + " Regional cultural secularism (e.g. the West's) is not "
+                  "compositional and is largely missed; within-metro contrasts are the supported use.",
+    },
+    "modeled_financial_satisfaction_pct": {
+        "combine": "weighted_mean", "value": "financial_satisfaction_pct", "weight": "adult_pop",
+        "unit": "percent", "direction": "higher_better", "synthetic": True,
+        "label": "Modeled % satisfied with finances", "category": "material_wellbeing",
+        "caveat": CIRC_CAVEAT + " Cost of living is not modeled, so cross-metro comparisons "
+                  "overstate satisfaction in expensive areas; within-metro contrasts are the "
+                  "supported use.",
+    },
+    "modeled_social_trust_pct": {
+        "combine": "weighted_mean", "value": "social_trust_pct", "weight": "adult_pop",
+        "unit": "percent", "direction": "higher_better", "synthetic": True,
+        "label": "Modeled social trust", "category": "community_vitality",
+        "caveat": CIRC_CAVEAT,
+    },
+    "modeled_fear_walking_pct": {
+        "combine": "weighted_mean", "value": "fear_walking_pct", "weight": "adult_pop",
+        "unit": "percent", "direction": "lower_better", "synthetic": True,
+        "label": "Modeled % afraid to walk at night", "category": "community_vitality",
+        "caveat": ("Synthetic small-area estimate of PERCEIVED safety: the share expected to report "
+                   "being afraid to walk alone at night nearby, given the area's circumstantial "
+                   "composition and population density. Identity (age/sex/race) is fitted but "
+                   "STANDARDIZED to the national mix, so the map reflects conditions, not who lives "
+                   "there. A perception measure — local crime itself is not an input."),
+    },
+}
+
+_SOC_CAVEAT = (CIRC_CAVEAT + " Geographic validity is partial: the model orders place types "
+               "(urban/suburban/rural, via the density term) but NOT regions — regional socializing "
+               "differences are cultural, not compositional. Within-metro contrasts are the "
+               "supported use.")
+OUTCOME_METRICS.update({
+    "modeled_weekly_friends_pct": {
+        "combine": "weighted_mean", "value": "weekly_friends_pct", "weight": "adult_pop",
+        "unit": "percent", "direction": "higher_better", "synthetic": True,
+        "label": "Modeled % seeing friends weekly", "category": "social_connectedness",
+        "caveat": _SOC_CAVEAT,
+    },
+    "modeled_weekly_neighbors_pct": {
+        "combine": "weighted_mean", "value": "weekly_neighbors_pct", "weight": "adult_pop",
+        "unit": "percent", "direction": "higher_better", "synthetic": True,
+        "label": "Modeled % socializing with neighbors weekly", "category": "social_connectedness",
+        "caveat": _SOC_CAVEAT,
+    },
+    "modeled_weekly_bar_pct": {
+        "combine": "weighted_mean", "value": "weekly_bar_pct", "weight": "adult_pop",
+        "unit": "percent", "direction": "higher_better", "synthetic": True,
+        "label": "Modeled % at a bar weekly", "category": "social_connectedness",
+        "caveat": _SOC_CAVEAT + " The weakest of the socializing metrics: its geographic signal is "
+                  "almost entirely the density gradient.",
+    },
+})
+# PRAY remains evaluated-and-REJECTED (outcomes.REJECTED): ceiling at the kill line, weak holdout.
+
+
 CI_NOTE = {
     "level": 0.90,
     "scope": "model_coefficient",
@@ -61,7 +148,59 @@ def write_spec(out_dir, geographies, *, vintage: str, model_key: str, gss_years:
     for geo in geographies:
         layers[geo] = {"file": f"happiness_{geo}.csv", "kind": "polygon_values", "id_field": "geoid"}
     spec["layers"] = layers
-    spec["metrics"] = {mid: {**m, "layer": list(layers), "ci": [f"{m['value']}_lo", f"{m['value']}_hi"]}
-                       for mid, m in METRICS.items()}
+    metrics = spec.get("metrics", {})
+    metrics.update({mid: {**m, "layer": list(layers), "ci": [f"{m['value']}_lo", f"{m['value']}_hi"]}
+                    for mid, m in METRICS.items()})
+    spec["metrics"] = metrics
+    path.write_text(json.dumps(spec, indent=2))
+    return path
+
+
+def write_outcomes_spec(out_dir, geographies, *, vintage: str, gss_years: str, calibration=None,
+                        calibration_window: str | None = None):
+    """Merge the modeled-outcomes layers + metrics into aggregation_spec.json.
+
+    Outcome layers are named `outcomes_<geo>` (file outcomes_<geo>.csv) so they coexist with the
+    happiness layers in one spec; a consumer keys source geometries by these layer names. Any stale
+    `religion_*` layers/metrics from the superseded religion-only artifact are dropped."""
+    out_dir = Path(out_dir)
+    path = out_dir / "aggregation_spec.json"
+    spec = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {
+        "contract": CONTRACT, "source": SOURCE, "synthetic_estimate": True}
+    spec.pop("religion", None)
+    layers = {n: v for n, v in spec.get("layers", {}).items() if not n.startswith("religion_")}
+    for geo in geographies:
+        layers[f"outcomes_{geo}"] = {"file": f"outcomes_{geo}.csv", "kind": "polygon_values",
+                                     "id_field": "geoid"}
+    all_outcomes = [n for n in layers if n.startswith("outcomes_")]
+    spec["layers"] = layers
+    metrics = {mid: m for mid, m in spec.get("metrics", {}).items() if mid not in OUTCOME_METRICS
+               and not str(m.get("layer", [""])[0]).startswith("religion_")}
+    metrics.update({mid: {**m, "layer": all_outcomes, "ci": [f"{m['value']}_lo", f"{m['value']}_hi"]}
+                    for mid, m in OUTCOME_METRICS.items()})
+    spec["metrics"] = metrics
+    spec["outcomes"] = {
+        "gss_years": gss_years, "acs_vintage": vintage, "confidence_interval": CI_NOTE,
+        "models": {
+            "religion family (attendance, no_religion)":
+                "identity-aware: circumstantial predictors + age4/sex/race_ethnicity, raked on ACS "
+                "B01001 adult age x sex + B03002 race margins (race margin is all-ages — an "
+                "approximation) — descriptive metrics, so identity is deliberately included",
+            "fear_walking":
+                "identity fitted but STANDARDIZED to the national mix (adjusts for response "
+                "composition without mapping it) + log-density term fit on GSS SRCBELT anchors and "
+                "projected on each area's actual density (density.py)",
+            "wellbeing family (financial_satisfaction, social_trust)":
+                "circumstantial-only, identity excluded by the same policy as the happiness metrics",
+            "socializing family (weekly_friends/neighbors/bar)":
+                "circumstantial + log-density; orders place types, not regions — see caveats",
+        },
+    }
+    if calibration is not None:
+        spec["outcomes"]["calibration"] = {
+            "method": "national additive benchmark to design-weighted GSS rate, RECENT window "
+                      "(attendance, trust, and socializing decline secularly, so pooled rates would "
+                      "overstate today's levels)",
+            "window": calibration_window, "offsets": calibration}
     path.write_text(json.dumps(spec, indent=2))
     return path

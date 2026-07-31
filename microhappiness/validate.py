@@ -96,6 +96,55 @@ def convergent_validity_depression(modeled_tract: pd.DataFrame, depression: dict
     }
 
 
+# State FIPS -> GSS REGION code. The current cumulative release collapses geography to the 4 census
+# regions (1=Northeast, 2=Midwest, 3=South, 4=West) — verified against the file, not the codebook's
+# historical 9-division coding.
+_REGION_BY_STATE = {
+    # Northeast
+    "09": 1, "23": 1, "25": 1, "33": 1, "44": 1, "50": 1, "34": 1, "36": 1, "42": 1,
+    # Midwest
+    "17": 2, "18": 2, "26": 2, "39": 2, "55": 2, "19": 2, "20": 2, "27": 2, "29": 2,
+    "31": 2, "38": 2, "46": 2,
+    # South
+    "10": 3, "11": 3, "12": 3, "13": 3, "24": 3, "37": 3, "45": 3, "51": 3, "54": 3,
+    "01": 3, "21": 3, "28": 3, "47": 3, "05": 3, "22": 3, "40": 3, "48": 3,
+    # West
+    "04": 4, "08": 4, "16": 4, "30": 4, "32": 4, "35": 4, "49": 4, "56": 4,
+    "02": 4, "06": 4, "15": 4, "41": 4, "53": 4,
+}
+
+
+def outcome_region_check(modeled_tract: pd.DataFrame, gss_binned, spec,
+                         years: tuple[int, int] = (2018, 2024)) -> dict:
+    """Modeled tract values for one outcomes.OutcomeSpec rolled up to the 4 census regions vs the
+    design-weighted GSS region rates (recent window). GSS geography in the current cumulative release
+    is region-only (4 regions), so this is the finest DIRECT geographic check the survey allows — the
+    tract-level pattern below it stays a modeled extrapolation."""
+    df = modeled_tract.copy()
+    df["region"] = df["geoid"].astype(str).str.zfill(11).str[:2].map(_REGION_BY_STATE)
+    pw = df.dropna(subset=["region"]).groupby("region").apply(
+        lambda g: float(np.average(g[spec.column], weights=g["adult_pop"])),
+        include_groups=False)
+
+    d = gss_binned.dropna(subset=[spec.gss_col])
+    d = d[d["year"].between(*years)].copy()
+    d["_w"] = d["wtssps"].fillna(1.0) if "wtssps" in d else 1.0
+    d["_top"] = spec.top(d[spec.gss_col]).astype(float)
+    actual = d.groupby("region").apply(
+        lambda g: float(np.average(g["_top"], weights=g["_w"]) * 100.0), include_groups=False)
+
+    paired = pd.DataFrame({"modeled": pw, "actual": actual}).dropna()
+    return {"n_regions": int(len(paired)),
+            "pearson_r": round(float(paired["modeled"].corr(paired["actual"])), 3),
+            "rank_agreement": bool((paired["modeled"].rank() == paired["actual"].rank()).all()),
+            "by_region": {int(k): {"modeled": round(v["modeled"], 1), "actual": round(v["actual"], 1)}
+                          for k, v in paired.iterrows()},
+            "note": "Direct geographic validation at the finest level the current GSS release reports "
+                    f"(4 census regions), GSS years {years[0]}-{years[1]}. The modeled range is "
+                    "compressed relative to the survey (composition explains only part of regional "
+                    "differences) — expect rank agreement, not magnitude agreement."}
+
+
 def convergent_validity(modeled_tract: pd.DataFrame, life_exp: dict) -> dict:
     """Correlate modeled tract happiness with independent tract life expectancy (needs a clean GEOID->LE)."""
     df = modeled_tract.copy()

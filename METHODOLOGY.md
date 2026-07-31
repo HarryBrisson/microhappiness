@@ -186,6 +186,66 @@ ACS 5-yr "years" are overlapping windows — label them as such.
 - **Longitudinal:** synthetic national trend vs actual GSS national `HAPPY` trend by year.
 - Report all three honestly; treat sub-city agreement as the weak point it is.
 
+## 5a. Modeled GSS outcomes beyond happiness (`outcomes.py`)
+
+The same MRP machinery pointed at further GSS outcomes, published per area in `outcomes_<geo>.csv`
+(merged into the same `aggregation_spec.json`) in two bundles:
+
+- **Religion family — IDENTITY-AWARE.** `attendance_index` (0–100 = E[ATTEND]/8×100),
+  `weekly_attendance_pct` (ATTEND ≥ 6), `no_religion_pct` (RELIG = none). The identity-free equity
+  policy protects the *wellbeing* models — a wellbeing map must not reward/penalize composition.
+  These are **descriptive** metrics, and attendance/affiliation are strongly age- and race-patterned
+  (identity roughly **doubles** their ceiling: attendance 0.029→0.055, no-religion 0.025→0.081), so
+  they fit age4/sex/race_ethnicity too and rake ACS **B01001** (adult age×sex) + **B03002** (race,
+  an all-ages margin — a documented approximation) alongside the circumstantial margins. Their
+  caveat states plainly: the estimate reflects who lives in the area, not congregational life. The
+  identity seed (192×4×2×4 = 6,144 cells) is Laplace-smoothed (0.5% of mass) so IPF has no
+  structural zeros; `poststratify.rake_many` vectorizes the raking across areas.
+- **Wellbeing family — circumstantial-only**, same policy as happiness:
+  `financial_satisfaction_pct` (SATFIN, ceiling **0.099** — the highest of any outcome; caveat: cost
+  of living is not modeled, so within-metro contrasts are the supported use) and `social_trust_pct`
+  (TRUST, 0.052).
+- **Fear — identity-STANDARDIZED + density.** `fear_walking_pct` (FEAR: afraid to walk alone at
+  night nearby). Identity is in the FIT (fear is heavily sex/age patterned; pseudo-R² ~0.11 with
+  identity + urbanicity, our best-modeled outcome) but predictions hold the identity mix at the
+  NATIONAL average — direct standardization, as in age-adjusted disease rates — so the map reflects
+  conditions and density, never "women live here." A perception measure; local crime is not an input.
+- **Socializing family — circumstantial + density**, published WITH caveats (Harry, 2026-07):
+  `weekly_friends_pct`, `weekly_neighbors_pct`, `weekly_bar_pct` (SOCFREND/SOCOMMUN/SOCBAR ≤ 2).
+
+**The density bridge** (`density.py`) — the within-city urbanicity signal. Public GSS reveals only a
+respondent's PLACE TYPE (SRCBELT, through 2022), so density outcomes fit a linear `logdens` term on
+belt-anchored respondent density (anchors share-matched onto the national pop-weighted tract density
+distribution; linear log-density recovers ~90–99% of the categorical belt fit) and project it on each
+tract's ACTUAL density (Census Gazetteer land area × B01001 population, winsorized to the pop-weighted
+1st–99th percentiles). This is what lets an estimate vary within a city, where every tract shares one
+belt. Fear's gradient: odds ×~1.8 per 10× density.
+
+**The gate grew a second blade** (`diagnostics/step0_outcomes_ceiling.py`): pseudo-R² alone is
+individual-level signal and can INVERT when projected onto places. Every outcome must also order GSS
+geography in holdout (region / region × era / region × belt cells). Attendance (region r +0.93),
+no_religion (+0.90), financial satisfaction (+0.90 recent-window), trust (+0.98), and fear (region ×
+belt +0.96) pass. The socializing trio FAILS region ordering (weekly_friends region r **−0.62**,
+weekly_neighbors −0.30 recent — regional socializing differences are cultural, not compositional) but
+orders PLACE TYPES well once density is in (region × belt +0.37..+0.85, belt +1.00); published with
+explicit partial-validity caveats, weekly_bar carrying the strongest (its geographic signal is almost
+entirely the density gradient). **PRAY stays rejected** (ceiling 0.024 at the kill line, holdout
+~0.60; `outcomes.REJECTED`).
+
+**Built-layer validation** (2026-07 national run, 82,426 tracts; `validate.outcome_region_check`
+vs 2018–2024 GSS region rates, tract p10–p90 spread vs median coefficient CI):
+
+| outcome | region r | tract spread vs CI | reading |
+|---|---|---|---|
+| weekly_attendance | **+0.90** | 8.4 vs 1.7 | South highest ✓; denominational culture (e.g. Utah) still unseen |
+| social_trust | **+0.89** | 13.6 vs 3.0 | South-lowest ordering ✓, compressed magnitudes |
+| no_religion | +0.17 | 9.5 vs 1.6 | weak-positive: Western cultural secularism (actual 34% vs modeled 27%) is not compositional — regional claim is weak, within-metro spread is the product |
+| financial_satisfaction | −0.18 (n.s.) | 17.8 vs 1.2 | regions are ~flat in BOTH model and survey (~2pt band) — the region check is uninformative here; the within-metro income gradient is the claim |
+
+**Calibration** is benchmarked to the **recent-window** (2018–2024) design-weighted GSS rates, not
+pooled — attendance and trust decline secularly, so pooled benchmarks would overstate today's
+levels. A deliberate divergence from the happiness calibration.
+
 ## 6. Data access
 
 - **GSS:** the cumulative datafile 1972–present (NORC `gss.norc.org`, Stata/SPSS), or the `gssr` R

@@ -17,6 +17,12 @@ import numpy as np
 PREDICTORS = ("married", "employment", "home_owner", "lives_alone", "income4", "health")
 CATEGORICAL = ("employment",)  # the rest are already 0-indexed ints
 
+# Identity poststrat dims — used ONLY by outcomes that explicitly allow identity (outcomes.py; the
+# happiness models remain identity-free by policy). Bins chosen for clean ACS margins: age4 from
+# B01001 adult cells, sex from B01001, race4 from B03002.
+IDENTITY_PREDICTORS = ("age4", "sex", "race_ethnicity")
+AGE4_CUTS = (35, 50, 65)  # 18-34 / 35-49 / 50-64 / 65+
+
 # National household-income bracket percentile cut points (approx. US distribution) used to bin GSS
 # income onto the same 4 brackets ACS publishes (<25k / 25-50k / 50-100k / 100k+).
 INCOME_PCT_CUTS = (0.20, 0.43, 0.73)
@@ -33,4 +39,8 @@ def bin_gss(df):
     for col in ("home_owner", "lives_alone", "health"):
         if col in out:
             out[col] = out[col].astype("float")
+    if "age" in out:
+        age = out["age"].where(out["age"] >= 18)
+        out["age4"] = np.digitize(age, AGE4_CUTS).astype("float")
+        out.loc[age.isna(), "age4"] = np.nan
     return out

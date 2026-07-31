@@ -11,8 +11,6 @@ from __future__ import annotations
 
 import numpy as np
 
-_COLS = ("happiness_index", "pct_very_happy")
-
 
 def gss_national(gss_binned) -> dict:
     """Design-weighted GSS national very-happy % and mean 0-100 index — the calibration target."""
@@ -25,10 +23,10 @@ def gss_national(gss_binned) -> dict:
 
 
 def offsets(df, target: dict) -> dict:
-    """Additive offsets making df's population-weighted means match `target`."""
+    """Additive offsets making df's population-weighted means match `target` (one per target column)."""
     pop = df["adult_pop"].to_numpy(dtype=float)
     pop = pop if pop.sum() > 0 else np.ones(len(df))
-    return {col: round(target[col] - float(np.average(df[col], weights=pop)), 3) for col in _COLS}
+    return {col: round(target[col] - float(np.average(df[col], weights=pop)), 3) for col in target}
 
 
 def apply_offsets(df, offs: dict):
