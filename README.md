@@ -41,6 +41,15 @@ partial-validity caveats — it orders place types, not regions. Every outcome p
 gate (variance ceiling AND holdout geographic ordering; PRAY failed and is not published). Caveats
 and gate results in METHODOLOGY.md §5a.
 
+A second survey feeds the same machinery: **modeled ATUS time-use outcomes** (`atus_<geo>.csv`, via
+`python -m microhappiness.atus_outcomes --geography tract`) — **daily leisure minutes** (BLS
+leisure-and-sports convention) and **time poverty** (% under 2h leisure/day), fit on ten pooled
+years of American Time Use Survey diaries (weighted diary days, CPS-linked demographics,
+identity-free, with a `fulltime` work margin from ACS B23022). ATUS's state-level geography makes
+the holdout gate sharper (leisure state r +0.82), and a **commute anchor** — modeled vs
+ACS-*measured* tract commutes, r ≈ 0.21 — is quoted in every caveat as the honest ceiling on how
+much non-compositional place variation any of these estimates can see. METHODOLOGY.md §5b.
+
 ## How it works
 
 ```

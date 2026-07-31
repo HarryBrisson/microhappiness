@@ -3,6 +3,7 @@ data/*.dta
 data/*.sav
 data/*.csv
 data/acs_cache/
+data/atus_cache/
 data/places_cache/
 data/pums_cache/
 build/

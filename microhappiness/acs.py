@@ -159,6 +159,43 @@ def _sf_table_path(table: str, year: int) -> Path:
     return dest
 
 
+# ---- ATUS-outcome extras (atus_outcomes.py) ------------------------------------------------------
+# fulltime margin: usually-worked-35+ workers from B23022 (universe 20 to 64 — FT workers 65+ are
+# missed, a small undercount) over the B12001 15+ total the other margins already use. commute
+# anchor: mean minutes = aggregate travel time (B08013) / workers not working at home (B08303_001) —
+# NEVER a raking margin, only the validation target for the modeled-commute anchor.
+FULLTIME_VARS = ["B23022_004E", "B23022_028E"]
+COMMUTE_VARS = {"aggregate_min": "B08013_001E", "workers": "B08303_001E"}
+
+
+def fetch_atus_extras_sf(year: int = 2022, geography: str = "tract") -> dict:
+    """{geoid: {"fulltime_share", "commute_mean" (may be NaN), "pop"}} from the keyless summary files."""
+    variables = [*FULLTIME_VARS, *COMMUTE_VARS.values(), "B12001_001E"]
+    prefix = _SF_GEO_PREFIX[geography]
+    merged = None
+    for table in sorted({v.split("_")[0] for v in variables}):
+        cols = ["GEO_ID"] + [_sf_column(v) for v in variables if v.startswith(table + "_")]
+        df = pd.read_csv(_sf_table_path(table, year), sep="|", usecols=cols, dtype={"GEO_ID": str})
+        df = df[df["GEO_ID"].str.startswith(prefix)]
+        merged = df if merged is None else merged.merge(df, on="GEO_ID", how="inner")
+    merged["geoid"] = merged["GEO_ID"].str[len(prefix):]
+    merged = merged.set_index("geoid").rename(
+        columns={_sf_column(v): v for v in variables}).apply(pd.to_numeric, errors="coerce")
+    out = {}
+    for geoid, r in merged.iterrows():
+        pop = r["B12001_001E"]
+        if not pop or pop <= 0:
+            continue
+        workers = r[COMMUTE_VARS["workers"]]
+        out[geoid] = {
+            "fulltime_share": min(1.0, sum(r[v] for v in FULLTIME_VARS) / pop),
+            "commute_mean": (r[COMMUTE_VARS["aggregate_min"]] / workers
+                             if workers and workers > 0 else float("nan")),
+            "pop": float(pop),
+        }
+    return out
+
+
 def fetch_acs_margins_sf(year: int = 2022, geography: str = "tract",
                          include_identity: bool = False) -> dict:
     """The same margins as fetch_acs_margins, but NATIONAL in one pass from the keyless summary files.
