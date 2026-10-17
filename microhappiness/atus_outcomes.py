@@ -98,7 +98,7 @@ def build_seed(atus: pd.DataFrame) -> pd.DataFrame:
 
 def fit_outcome(atus: pd.DataFrame, spec: AtusOutcomeSpec, seed: pd.DataFrame, *, rng_seed=0):
     """Weighted fit -> per-seed-cell linear predictors (+ coefficient draws). -> (fit dict, n)."""
-    import patsy
+    from microhappiness._design import seed_design
     import statsmodels.api as sm
     import statsmodels.formula.api as smf
 
@@ -116,7 +116,7 @@ def fit_outcome(atus: pd.DataFrame, spec: AtusOutcomeSpec, seed: pd.DataFrame, *
         model = smf.glm(f"_y ~ {ATUS_RHS}", data=d, freq_weights=d["_w_norm"],
                         family=sm.families.Binomial()).fit()
         link = "logit"
-    X = np.asarray(patsy.build_design_matrices([model.model.data.design_info], seed)[0])
+    X = seed_design(model, seed)
     rng = np.random.default_rng(rng_seed)
     b = rng.multivariate_normal(model.params.to_numpy(), model.cov_params().to_numpy(), N_DRAWS)
     return {"link": link, "lin": X @ model.params.to_numpy(), "lin_draws": X @ b.T}, len(d)
@@ -209,7 +209,7 @@ def main() -> None:
     import argparse
     from pathlib import Path
 
-    from microhappiness import calibrate
+    from microhappiness import calibrate, provenance
     from microhappiness.acs import fetch_acs_margins_sf, fetch_atus_extras_sf
     from microhappiness.atus import load_atus, weighted_stats
     from microhappiness.publish import write_atus_spec
@@ -247,7 +247,8 @@ def main() -> None:
     out = out_dir / f"atus_{geo}.csv"
     full[keep].to_csv(out, index=False)
     write_atus_spec(out_dir, [geo], vintage=str(args.acs_year), atus_years=f"{yr_lo}-{yr_hi}",
-                    calibration=offs, validation={"commute_anchor": anchor, "spread": spreads})
+                    calibration=offs, validation={"commute_anchor": anchor, "spread": spreads},
+                    provenance=provenance.environment())
     print(f"\nfits N={meta['n_fit']}; cells {meta['n_cells']}; {len(full)} {geo}s -> {out}")
     for spec in OUTCOMES:
         print(f"  {spec.column}: target {target[spec.column]:.1f}, offset {offs[spec.column]}, "

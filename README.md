@@ -93,13 +93,34 @@ CDC PLACES health margin  ──────────┘
 **Build the estimates** (needs a free [Census API key](https://api.census.gov/data/key_signup.html)
 and the [GSS cumulative datafile](https://gss.norc.org/get-the-data) at `data/gss_cumulative.dta`):
 
+**Set up the environment** — the published run used Python 3.12.7 and the exact package versions in
+`poetry.lock`. Other versions can shift tract values slightly, so replicate with the lock:
+
 ```bash
-pip install -e .
+pyenv install -s 3.12.7          # .python-version pins it; any 3.12.x works, 3.12.7 matches exactly
+poetry env use 3.12.7
+poetry install --with viz,dev    # viz = maps/charts in diagnostics/, dev = pytest
+poetry run pytest
+```
+
+(No Poetry? `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt -e .` pins the
+core stack, but not the transitive dependencies.)
+
+```bash
 export CENSUS_API_KEY=...
-python -m diagnostics.step0_variance_ceiling                 # the honesty gate (measure the ceiling)
-python -m microhappiness.run --geography tract --out-dir data/national   # nationwide tracts
-python -m microhappiness.run --geography zcta  --out-dir data/national   # nationwide ZCTAs
-python -m diagnostics.make_visuals                           # regenerate the README visuals
+poetry run python -m diagnostics.step0_variance_ceiling      # the honesty gate (measure the ceiling)
+poetry run python -m microhappiness.run --geography tract --out-dir data/national   # nationwide tracts
+poetry run python -m microhappiness.run --geography zcta  --out-dir data/national   # nationwide ZCTAs
+poetry run python -m diagnostics.make_visuals                # regenerate the README visuals
+```
+
+**Check a replication.** Add `--checkpoint-dir data/checkpoints` to any `run` command to write each
+stage (GSS sample, coefficients, design columns, rake convergence, seed predictions, output summary) as
+small CSV/JSON files you can diff. `aggregation_spec.json` records the Python and package versions and
+the data vintages used. To compare two runs:
+
+```bash
+poetry run python -m diagnostics.compare_outputs theirs/happiness_tract.csv data/national/happiness_tract.csv
 ```
 
 **Consume the published artifact** (no need to run the model). Read `data/national/happiness_<geo>.csv`
@@ -115,7 +136,8 @@ aggregate. Consume the **published artifact**, so you never import this repo's m
 
 ```
 microhappiness/   gss · acs · places · binning · poststratify · estimate · calibrate · validate · publish · run
-diagnostics/      step0_variance_ceiling · step1_screen · full_screen · make_visuals
+diagnostics/      step0_variance_ceiling · step1_screen · full_screen · make_visuals · compare_outputs
+tests/            smoke test of the fit → design-matrix → prediction path
 ```
 
 ## License / data

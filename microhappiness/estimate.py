@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import patsy
 
 from microhappiness.binning import PREDICTORS
 from microhappiness.poststratify import precompute_masks, rake
@@ -53,10 +52,11 @@ def predict_cells(seed, logit, ols):
     return seed
 
 
-def estimate_state(gss_binned, acs_margins, places_health, *, fitted=None):
+def estimate_state(gss_binned, acs_margins, places_health, *, fitted=None, rake_log=None):
     """Estimate every area that has both ACS margins and a PLACES health value. -> DataFrame.
 
     `fitted` = (seed, masks, w0, idx, pv, n_fit) to reuse the GSS fit across states (built if None).
+    `rake_log`, if a list, collects each area's worst raked-margin miss (see margin_error).
     """
     if fitted is None:
         logit, ols, n_fit = fit_models(gss_binned)
@@ -73,9 +73,22 @@ def estimate_state(gss_binned, acs_margins, places_health, *, fitted=None):
         m = dict(margin)
         m["health"] = {1.0: h["fraction"], 0.0: 1.0 - h["fraction"]}
         w = rake(masks, w0, m)
+        if rake_log is not None:
+            rake_log.append({"geoid": geoid, "max_margin_err": margin_error(masks, w, m)})
         rows.append({"geoid": geoid, "happiness_index": float(np.dot(w, idx)),
                      "pct_very_happy": float(np.dot(w, pv)), "adult_pop": h["adult_pop"]})
     return pd.DataFrame(rows), {"n_fit": n_fit, "n_cells": len(seed)}
+
+
+def margin_error(masks, w, margins) -> float:
+    """Largest |raked share - target| over every controlled margin level (0 = raking converged)."""
+    worst = 0.0
+    for pred, targets in margins.items():
+        for level, target in targets.items():
+            mask = masks[pred].get(level)
+            if mask is not None:
+                worst = max(worst, abs(float(w[mask].sum()) - target))
+    return worst
 
 
 # ----- M5: add the mental-health + smoking PLACES margins -----------------------------------------
@@ -113,21 +126,11 @@ def _draw_predictions(seed, logit, ols, coef, bse, n_draws, rng_seed):
     drawn graft terms. Raking weights don't depend on coefficients, so a tract's CI is just
     w · preds-percentiles — cheap to evaluate per area."""
     import numpy as np
-    import patsy
+    from microhappiness._design import seed_design
 
     rng = np.random.default_rng(rng_seed)
-    try:
-        X = np.asarray(patsy.build_design_matrices([logit.model.data.design_info], seed)[0])
-    except Exception as design_info_error:
-        try:
-            X = np.asarray(patsy.build_design_matrices([logit.model.data.model_spec], seed)[0])
-        except Exception as model_spec_error:
-            raise RuntimeError(
-                "Could not build the M5 prediction design matrix: both "
-                "logit.model.data.design_info and logit.model.data.model_spec failed. "
-                f"design_info error: {type(design_info_error).__name__}: {design_info_error}; "
-                f"model_spec error: {type(model_spec_error).__name__}: {model_spec_error}"
-            ) from model_spec_error
+    X = seed_design(logit, seed)
+    assert list(ols.params.index) == list(logit.params.index), "OLS draws reuse the logit design"
     bL = rng.multivariate_normal(logit.params.to_numpy(), logit.cov_params().to_numpy(), n_draws)
     bO = rng.multivariate_normal(ols.params.to_numpy(), ols.cov_params().to_numpy(), n_draws)
     mh, sm = seed["mental_health"].to_numpy(), seed["smoker"].to_numpy()
@@ -172,7 +175,7 @@ def fit_m5(gss_binned, *, n_draws=200, rng_seed=0):
             n_fit, len(seed), coef, preds_pct, preds_idx)
 
 
-def estimate_state_m5(gss_binned, acs_margins, places, *, fitted=None):
+def estimate_state_m5(gss_binned, acs_margins, places, *, fitted=None, rake_log=None):
     """M5 estimates + 90% CIs. `places` = {'GHLTH','MHLTH','CSMOKING'} of {geoid:{fraction,adult_pop}}."""
     masks, w0, ix, pv, n_fit, n_cells, coef, preds_pct, preds_idx = fitted or fit_m5(gss_binned)
     rows = []
@@ -185,6 +188,8 @@ def estimate_state_m5(gss_binned, acs_margins, places, *, fitted=None):
         m["mental_health"] = {1.0: mh["fraction"], 0.0: 1 - mh["fraction"]}
         m["smoker"] = {1.0: sm["fraction"], 0.0: 1 - sm["fraction"]}
         w = rake(masks, w0, m)
+        if rake_log is not None:
+            rake_log.append({"geoid": geoid, "max_margin_err": margin_error(masks, w, m)})
         ilo, ihi = np.percentile(w @ preds_idx, [5, 95])   # 90% CI over coefficient uncertainty
         plo, phi = np.percentile(w @ preds_pct, [5, 95])
         rows.append({"geoid": geoid,

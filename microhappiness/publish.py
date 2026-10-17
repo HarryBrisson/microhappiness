@@ -179,7 +179,7 @@ ATUS_METRICS = {
 
 
 def write_atus_spec(out_dir, geographies, *, vintage: str, atus_years: str, calibration=None,
-                    validation=None):
+                    validation=None, provenance=None):
     """Merge the ATUS time-use layers + metrics into aggregation_spec.json (sibling of the GSS
     outcome layers; layer `atus_<geo>` reads atus_<geo>.csv)."""
     out_dir = Path(out_dir)
@@ -211,8 +211,15 @@ def write_atus_spec(out_dir, geographies, *, vintage: str, atus_years: str, cali
             "offsets": calibration}
     if validation is not None:
         spec["atus_outcomes"]["validation"] = validation
+    _record_provenance(spec, "atus_outcomes", provenance)
     path.write_text(json.dumps(spec, indent=2))
     return path
+
+
+def _record_provenance(spec: dict, layer_family: str, provenance) -> None:
+    """Keep each pipeline's environment + data releases under spec['provenance'][<family>]."""
+    if provenance is not None:
+        spec.setdefault("provenance", {})[layer_family] = provenance
 
 
 CI_NOTE = {
@@ -224,7 +231,8 @@ CI_NOTE = {
 }
 
 
-def write_spec(out_dir, geographies, *, vintage: str, model_key: str, gss_years: str, calibration=None):
+def write_spec(out_dir, geographies, *, vintage: str, model_key: str, gss_years: str, calibration=None,
+               provenance=None):
     """Write/merge aggregation_spec.json next to the per-geography CSVs (happiness_<geo>.csv).
 
     Layers accumulate across calls (so running tract then zcta yields a spec with both). `calibration`
@@ -247,12 +255,13 @@ def write_spec(out_dir, geographies, *, vintage: str, model_key: str, gss_years:
     metrics.update({mid: {**m, "layer": list(layers), "ci": [f"{m['value']}_lo", f"{m['value']}_hi"]}
                     for mid, m in METRICS.items()})
     spec["metrics"] = metrics
+    _record_provenance(spec, "happiness", provenance)
     path.write_text(json.dumps(spec, indent=2))
     return path
 
 
 def write_outcomes_spec(out_dir, geographies, *, vintage: str, gss_years: str, calibration=None,
-                        calibration_window: str | None = None):
+                        calibration_window: str | None = None, provenance=None):
     """Merge the modeled-outcomes layers + metrics into aggregation_spec.json.
 
     Outcome layers are named `outcomes_<geo>` (file outcomes_<geo>.csv) so they coexist with the
@@ -297,5 +306,6 @@ def write_outcomes_spec(out_dir, geographies, *, vintage: str, gss_years: str, c
                       "(attendance, trust, and socializing decline secularly, so pooled rates would "
                       "overstate today's levels)",
             "window": calibration_window, "offsets": calibration}
+    _record_provenance(spec, "outcomes", provenance)
     path.write_text(json.dumps(spec, indent=2))
     return path

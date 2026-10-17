@@ -19,9 +19,12 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 from urllib.request import urlopen
+
+from microhappiness.provenance import socrata_release
 
 RESOURCE = {"tract": "https://data.cdc.gov/resource/cwsq-ngmh.json",   # 2025 release: 2020 tracts (matches ACS)
             "zcta": "https://data.cdc.gov/resource/qnzd-25i4.json"}    # 2025 ZCTA release
@@ -61,15 +64,45 @@ def fetch_measure(measure: str = "GHLTH", *, geography: str = "tract", state_abb
     For a national tract pull, KY/PA (absent from the 2025 release) are backfilled from the 2023 release.
     Raw results are cached on disk (ABC) so re-runs and sibling pipelines skip the slow SODA paging.
     """
-    cache = (Path(os.environ.get("MICROHAPPINESS_PLACES_CACHE", "data/places_cache"))
-             / f"{measure}_{geography}_{state_abbr or 'us'}.json")
+    cache = _cache_path(measure, geography, state_abbr)
     if cache.exists():
         return json.loads(cache.read_text(encoding="utf-8"))
     out = _pull(RESOURCE[geography], measure, state_abbr)
+    resources = [RESOURCE[geography]]
     if geography == "tract" and state_abbr is None:
+        resources.append(_TRACT_FALLBACK)
         for st in _FALLBACK_STATES:
             for geoid, rec in _pull(_TRACT_FALLBACK, measure, st).items():
                 out.setdefault(geoid, rec)  # fill only what the primary release lacked
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_text(json.dumps(out), encoding="utf-8")
+    # CDC can revise rows under the same dataset id, so record which release this cache holds.
+    meta = {"fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "releases": [socrata_release(r) for r in resources]}
+    _meta_path(cache).write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    return out
+
+
+def _cache_path(measure: str, geography: str, state_abbr: str | None = None) -> Path:
+    return (Path(os.environ.get("MICROHAPPINESS_PLACES_CACHE", "data/places_cache"))
+            / f"{measure}_{geography}_{state_abbr or 'us'}.json")
+
+
+def _meta_path(cache: Path) -> Path:
+    return cache.with_suffix(".meta.json")
+
+
+def cache_provenance(measures, geography: str) -> dict:
+    """{measure: release info} for the cached PLACES pulls a run used (for aggregation_spec.json)."""
+    out = {}
+    for m in measures:
+        cache = _cache_path(m, geography)
+        meta = _meta_path(cache)
+        if meta.exists():
+            out[m] = json.loads(meta.read_text(encoding="utf-8"))
+        elif cache.exists():
+            mtime = datetime.fromtimestamp(cache.stat().st_mtime, timezone.utc).isoformat(timespec="seconds")
+            out[m] = {"fetched_at": mtime, "releases": [{"dataset_id": RESOURCE[geography].rsplit("/", 1)[-1]
+                                                         .removesuffix(".json")}],
+                      "note": "cache predates release tracking; fetched_at is the file mtime"}
     return out

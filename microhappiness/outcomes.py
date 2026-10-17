@@ -143,7 +143,7 @@ def fit_outcome(gss_binned, spec, seed, respondent_covs, *, rng_seed=0):
     Returns {column: {"link", "lin" (C,), "lin_draws" (C,D), "covs": {name: (coef, draws)}}}.
     `respondent_covs` maps each covariate name to a callable(frame) -> respondent values (the
     ecological attachment: logdens from belt anchors, logcong from region x belt cell means)."""
-    import patsy
+    from microhappiness._design import seed_design
     import statsmodels.formula.api as smf
 
     dims = bundle_dims(spec.identity)
@@ -166,7 +166,7 @@ def fit_outcome(gss_binned, spec, seed, respondent_covs, *, rng_seed=0):
         else:
             model = smf.ols(f"{target_col} ~ {rhs}", data=d).fit()
         params, cov = model.params, model.cov_params()
-        X = np.asarray(patsy.build_design_matrices([model.model.data.design_info], seed)[0])
+        X = seed_design(model, seed)
         b = rng.multivariate_normal(params.to_numpy(), cov.to_numpy(), N_DRAWS)
         names = list(params.index)
         covs = {}
@@ -302,11 +302,11 @@ def main() -> None:
     import argparse
     from pathlib import Path
 
-    from microhappiness import calibrate, cbp, density
+    from microhappiness import calibrate, cbp, density, provenance
     from microhappiness.acs import fetch_acs_margins_sf
     from microhappiness.binning import bin_gss
     from microhappiness.gss import GSS_COLUMNS, load_gss, recode_predictors
-    from microhappiness.places import fetch_measure
+    from microhappiness.places import cache_provenance, fetch_measure
     from microhappiness.publish import write_outcomes_spec
 
     ap = argparse.ArgumentParser(description=__doc__)
@@ -367,8 +367,10 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / f"outcomes_{geo}.csv"
     full.to_csv(out, index=False)
-    write_outcomes_spec(out_dir, [geo], vintage=str(args.acs_year), gss_years="1972-2024",
-                        calibration=offs,
+    prov = {**provenance.environment(), "gss": provenance.gss_file(args.gss, gss),
+            "places": cache_provenance(["GHLTH"], geo)}
+    write_outcomes_spec(out_dir, [geo], vintage=str(args.acs_year), gss_years=provenance.gss_years(gss),
+                        calibration=offs, provenance=prov,
                         calibration_window=f"{CALIBRATION_YEARS[0]}-{CALIBRATION_YEARS[1]}")
     print(f"\nfits N={meta['n_fit']}; cells {meta['n_cells']}; {len(full)} {geo}s -> {out}")
     for spec in OUTCOMES:

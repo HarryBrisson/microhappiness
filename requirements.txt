@@ -1,7 +1,7 @@
-# Modeling + data pipeline (build-time only; downstream consumers read the published artifact).
-pandas>=2.0
-numpy>=1.24
-statsmodels>=0.14      # ordinal / multilevel logit fits
-pyreadstat>=1.2        # read GSS .dta / .sav
-requests>=2.31         # Census API
-# pandas reads Stata natively; pyreadstat is the faster/robust path for SPSS + value labels.
+# Fallback for people not using Poetry. Prefer `poetry install` (see README) — poetry.lock also pins
+# every transitive dependency. Keep these in step with pyproject.toml.
+pandas==3.0.3
+numpy==2.4.6
+scipy==1.18.0
+statsmodels==0.14.6
+patsy==1.0.2

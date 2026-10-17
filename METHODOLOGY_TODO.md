@@ -23,6 +23,18 @@ for tractability, and where a v2 could do better. Grouped by priority.
    owner-share over-weights larger households). Fix: convert household margins to person-level using
    ACS household-size-by-type tables, or poststratify at the household level for HH attributes.
 
+3a. **Published happiness CSVs predate the raking fix (found 2026-10-16 during Takashi's
+   replication).** `happiness_tract.csv` / `happiness_zcta.csv` were built 2026-06-20, while IPF
+   still stopped after one pass (fixed in `5d191fe`, 2026-07-30). A fresh Illinois run on today's code
+   differs from the published values by mean 0.8 / max 3.0 index points (r = 0.993). With raking forced
+   back to one pass it reproduces the published file exactly (r = 1.000; the only gap is a constant
+   0.4 from calibrating on IL alone). So library versions, the ACS/PLACES pulls and the GSS file are
+   NOT the source of replication differences — the code change is. Fix: re-run both geographies
+   nationally and re-publish; Penlight's modeled-happiness layers inherit the stale values until then.
+   Replication tooling now in place: `poetry.lock`, `--checkpoint-dir`, provenance in
+   `aggregation_spec.json`, `diagnostics/compare_outputs.py`, and the design-matrix guard
+   (`_design.py`) for the `design_info` error seen on Python 3.10.
+
 ## Medium priority (method approximations)
 
 4. **Income harmonization.** GSS income is binned by within-year *percentile* cut points
