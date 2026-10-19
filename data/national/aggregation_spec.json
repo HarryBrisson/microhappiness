@@ -5,7 +5,7 @@
   "caveat": "Synthetic small-area estimates: the happiness EXPECTED given an area's circumstantial composition (income, marital/household status, employment, home ownership, health) \u2014 NOT an observed local measurement. Identity characteristics (age/sex/race) are excluded by policy.",
   "acs_vintage": "2022",
   "model": "m5",
-  "gss_years": "1972-2022",
+  "gss_years": "1972-2024",
   "layers": {
     "tract": {
       "file": "happiness_tract.csv",
@@ -343,8 +343,8 @@
   "calibration": {
     "method": "national additive benchmark to design-weighted GSS rate",
     "offsets": {
-      "happiness_index": 3.21,
-      "pct_very_happy": 4.479
+      "pct_very_happy": 4.375,
+      "happiness_index": 3.138
     }
   },
   "outcomes": {
@@ -421,6 +421,64 @@
           "p90": 22.7
         }
       }
+    }
+  },
+  "provenance": {
+    "happiness": {
+      "python": "3.12.7",
+      "packages": {
+        "pandas": "3.0.3",
+        "numpy": "2.4.6",
+        "scipy": "1.18.0",
+        "statsmodels": "0.14.6",
+        "patsy": "1.0.2"
+      },
+      "git_commit": "383372ce8045e4910d85229d81b66a54fecb3a56",
+      "gss": {
+        "file": "gss_cumulative.dta",
+        "bytes": 597816363,
+        "sha256": "f8d435efb640a9b43dcdeda7e91ac52c29490193fd494fa86061fe4f744a2604",
+        "years": "1972-2024",
+        "n_years": 35
+      },
+      "places": {
+        "GHLTH": {
+          "fetched_at": "2026-07-30T05:13:03+00:00",
+          "releases": [
+            {
+              "dataset_id": "qnzd-25i4"
+            }
+          ],
+          "note": "cache predates release tracking; fetched_at is the file mtime"
+        },
+        "MHLTH": {
+          "fetched_at": "2026-10-19T20:37:55+00:00",
+          "releases": [
+            {
+              "dataset_id": "qnzd-25i4",
+              "name": "PLACES: Local Data for Better Health, ZCTA Data, 2025 release",
+              "rows_updated_at": "2025-12-12T16:09:22+00:00"
+            }
+          ]
+        },
+        "CSMOKING": {
+          "fetched_at": "2026-10-19T20:37:59+00:00",
+          "releases": [
+            {
+              "dataset_id": "qnzd-25i4",
+              "name": "PLACES: Local Data for Better Health, ZCTA Data, 2025 release",
+              "rows_updated_at": "2025-12-12T16:09:22+00:00"
+            }
+          ]
+        }
+      },
+      "places_current_release": [
+        {
+          "dataset_id": "qnzd-25i4",
+          "name": "PLACES: Local Data for Better Health, ZCTA Data, 2025 release",
+          "rows_updated_at": "2025-12-12T16:09:22+00:00"
+        }
+      ]
     }
   }
 }

@@ -34,6 +34,12 @@ for tractability, and where a v2 could do better. Grouped by priority.
    Replication tooling now in place: `poetry.lock`, `--checkpoint-dir`, provenance in
    `aggregation_spec.json`, `diagnostics/compare_outputs.py`, and the design-matrix guard
    (`_design.py`) for the `design_info` error seen on Python 3.10.
+   **Rebuilt nationally 2026-10-19** (commit 383372c, pinned stack): vs the June files, tract index
+   |Δ| mean 0.79 / p95 1.77 / max 7.3 (r 0.992, rank r 0.991; Cook County |Δ| mean 0.74, max 3.3);
+   ZCTA |Δ| mean 0.69 (r 0.981). Raking now converges to <1e-4 everywhere except 5 tracts + 2 ZCTAs,
+   all prison / tiny / campus areas whose margins look jointly infeasible (worst: Folsom State Prison,
+   06067988300 / 95671, 0.21) — candidates for a group-quarters flag. Republished to Penlight prod
+   2026-10-19 (DATA_VERSION 7136a9388c33-20261019T222123Z): ward |Δ| mean 0.52, max 1.39, max rank shift 4.
 
 ## Medium priority (method approximations)
 

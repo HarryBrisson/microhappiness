@@ -251,8 +251,10 @@ def write_spec(out_dir, geographies, *, vintage: str, model_key: str, gss_years:
     for geo in geographies:
         layers[geo] = {"file": f"happiness_{geo}.csv", "kind": "polygon_values", "id_field": "geoid"}
     spec["layers"] = layers
+    # only the happiness layers: the outcomes/ATUS writers add their own layers to this same spec
+    happiness_layers = [n for n, l in layers.items() if l.get("file", "").startswith("happiness_")]
     metrics = spec.get("metrics", {})
-    metrics.update({mid: {**m, "layer": list(layers), "ci": [f"{m['value']}_lo", f"{m['value']}_hi"]}
+    metrics.update({mid: {**m, "layer": happiness_layers, "ci": [f"{m['value']}_lo", f"{m['value']}_hi"]}
                     for mid, m in METRICS.items()})
     spec["metrics"] = metrics
     _record_provenance(spec, "happiness", provenance)
