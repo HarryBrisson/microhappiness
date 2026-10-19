@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import patsy
 
 from microhappiness.binning import PREDICTORS
 from microhappiness.poststratify import precompute_masks, rake
@@ -115,7 +116,18 @@ def _draw_predictions(seed, logit, ols, coef, bse, n_draws, rng_seed):
     import patsy
 
     rng = np.random.default_rng(rng_seed)
-    X = np.asarray(patsy.build_design_matrices([logit.model.data.design_info], seed)[0])
+    try:
+        X = np.asarray(patsy.build_design_matrices([logit.model.data.design_info], seed)[0])
+    except Exception as design_info_error:
+        try:
+            X = np.asarray(patsy.build_design_matrices([logit.model.data.model_spec], seed)[0])
+        except Exception as model_spec_error:
+            raise RuntimeError(
+                "Could not build the M5 prediction design matrix: both "
+                "logit.model.data.design_info and logit.model.data.model_spec failed. "
+                f"design_info error: {type(design_info_error).__name__}: {design_info_error}; "
+                f"model_spec error: {type(model_spec_error).__name__}: {model_spec_error}"
+            ) from model_spec_error
     bL = rng.multivariate_normal(logit.params.to_numpy(), logit.cov_params().to_numpy(), n_draws)
     bO = rng.multivariate_normal(ols.params.to_numpy(), ols.cov_params().to_numpy(), n_draws)
     mh, sm = seed["mental_health"].to_numpy(), seed["smoker"].to_numpy()
