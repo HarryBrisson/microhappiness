@@ -81,7 +81,7 @@ CDC PLACES health margin  ──────────┘
   from the model) across 78.6k tracts.
 - **National trend — and why there's no temporal forecast.** A *cross-sectional* model tracks geography,
   not time (real year-to-year **r ≈ 0.11**; the apparent 0.36 is inflated by the 2021/2024 GSS web-mode
-  artifact). We tried a period model — it fits in-sample (r ≈ 0.81) but **overfits**: leave-one-year-out
+  waves, where a mode change and real change coincide). We tried a period model — it fits in-sample (r ≈ 0.81) but **overfits**: leave-one-year-out
   collapses to r ≈ 0.20. National happiness *mood* is idiosyncratic period shock, not a forecastable
   trend, so the honest product is the **spatial** estimate. (Details + chart in
   [METHODOLOGY_TODO.md](METHODOLOGY_TODO.md).)

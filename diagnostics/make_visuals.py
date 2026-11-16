@@ -23,7 +23,7 @@ INK, ACCENT, TEAL = "#1f2a2b", "#c2562a", "#2b6a6c"
 COUNTIES = "https://raw.githubusercontent.com/plotly/datasets/master/geojson-counties-fips.json"
 
 
-MODE_BREAK = (2021, 2024)  # GSS switched to web/push-to-web — a documented survey-mode artifact
+MODE_BREAK = (2021, 2024)  # GSS push-to-web waves; mode effect and real change coincide (temporal.py)
 
 
 def trend_chart(gss, out: Path):
@@ -32,10 +32,11 @@ def trend_chart(gss, out: Path):
     keep = df[~df.year.isin(MODE_BREAK)]
     r_ex = round(float(keep.actual.corr(keep.modeled)), 2)
     fig, ax = plt.subplots(figsize=(8, 4.6))
-    ax.axvspan(2020.4, 2024.6, color="#999", alpha=0.10)
+    for y in MODE_BREAK:
+        ax.axvspan(y - 0.6, y + 0.6, color="#999", alpha=0.10)
     ax.plot(df.year, df.actual, "-o", color=ACCENT, lw=2.2, ms=4.5, label="Actual GSS")
     ax.plot(df.year, df.modeled, "-o", color=TEAL, lw=2.2, ms=4.5, label="Modeled (composition + health)")
-    ax.annotate("2021 / 2024: GSS web-mode change\n(a survey artifact, not a real crash)",
+    ax.annotate("2021 / 2024: GSS web-mode waves\n(mode change and real change can't be separated)",
                 xy=(2021, 19.6), xytext=(2006, 21.5), fontsize=8.5, color="#555",
                 arrowprops=dict(arrowstyle="->", color="#999", lw=1))
     ax.set_title("National happiness: the model tracks geography, not period shocks", color=INK,
