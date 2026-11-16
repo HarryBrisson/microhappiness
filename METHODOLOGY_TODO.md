@@ -92,8 +92,9 @@ for tractability, and where a v2 could do better. Grouped by priority.
     national trend beautifully in-sample (**r≈0.81**) but **overfits** — leave-one-year-out collapses to
     **r≈0.20** (and −0.22 on in-person years); held out, 2021 predicts 27% vs the actual 20%. National
     happiness *mood* is idiosyncratic period shock, **not a smooth/forecastable trend** (chart:
-    `docs/temporal_overfit.png`). The 2021 "collapse" is mostly the GSS push-to-web mode change
-    (`mntlhlth` isn't even collected in 2021/2024; unemployment spiked but explains ~1 of ~12 pts).
+    `docs/temporal_overfit.png`). The 2021 "collapse" coincides with the GSS push-to-web mode
+    change, and the two can't be separated (no within-year mode experiment; `mntlhlth` isn't even
+    collected in 2021/2024; unemployment spiked but explains ~1 of ~12 pts).
     CONCLUSION: the cross-sectional product is the right one (geography is stable + predictable). A
     temporal panel can still be built as per-year *observed* snapshots — compositional tract estimates +
     each year's GSS national level via calibration (NOT a forecast) — but its national trend would be
